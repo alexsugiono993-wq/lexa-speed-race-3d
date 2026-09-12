@@ -247,7 +247,538 @@ function init() {
 
     createEnemyCars();
 
-    createEnvironment();
+
+// ==========================================
+// LINGKUNGAN JALAN - VERSI LEBIH HIDUP
+// ==========================================
+
+function createEnvironment() {
+
+    // ======================================
+    // POHON
+    // ======================================
+
+    for (
+        let i = 0;
+        i < 70;
+        i++
+    ) {
+
+        const tree =
+            createTree();
+
+        const side =
+            Math.random() > 0.5
+                ? 1
+                : -1;
+
+        tree.position.x =
+            side *
+            (
+                9 +
+                Math.random() * 12
+            );
+
+        tree.position.z =
+            -20 -
+            Math.random() * 500;
+
+        tree.position.y = 0;
+
+        const scale =
+            0.65 +
+            Math.random() * 1.5;
+
+        tree.scale.set(
+            scale,
+            scale,
+            scale
+        );
+
+        // variasi rotasi
+        tree.rotation.y =
+            Math.random() *
+            Math.PI * 2;
+
+        scene.add(tree);
+
+        roadObjects.push(tree);
+    }
+
+
+    // ======================================
+    // SEMAK
+    // ======================================
+
+    for (
+        let i = 0;
+        i < 100;
+        i++
+    ) {
+
+        const bush =
+            createBush();
+
+        const side =
+            Math.random() > 0.5
+                ? 1
+                : -1;
+
+        bush.position.x =
+            side *
+            (
+                7.5 +
+                Math.random() * 12
+            );
+
+        bush.position.z =
+            -20 -
+            Math.random() * 500;
+
+        const scale =
+            0.35 +
+            Math.random() * 0.9;
+
+        bush.scale.set(
+            scale,
+            scale,
+            scale
+        );
+
+        bush.rotation.y =
+            Math.random() *
+            Math.PI * 2;
+
+        scene.add(bush);
+
+        roadObjects.push(bush);
+    }
+
+
+    // ======================================
+    // BATU
+    // ======================================
+
+    for (
+        let i = 0;
+        i < 45;
+        i++
+    ) {
+
+        const rock =
+            createRock();
+
+        const side =
+            Math.random() > 0.5
+                ? 1
+                : -1;
+
+        rock.position.x =
+            side *
+            (
+                7.5 +
+                Math.random() * 8
+            );
+
+        rock.position.z =
+            -20 -
+            Math.random() * 500;
+
+        rock.position.y =
+            0.15;
+
+        const scale =
+            0.4 +
+            Math.random() * 0.8;
+
+        rock.scale.set(
+            scale,
+            scale,
+            scale
+        );
+
+        scene.add(rock);
+
+        roadObjects.push(rock);
+    }
+
+
+    // ======================================
+    // RUMPUT
+    // ======================================
+
+    for (
+        let i = 0;
+        i < 120;
+        i++
+    ) {
+
+        const grass =
+            createGrass();
+
+        const side =
+            Math.random() > 0.5
+                ? 1
+                : -1;
+
+        grass.position.x =
+            side *
+            (
+                6.5 +
+                Math.random() * 13
+            );
+
+        grass.position.z =
+            -20 -
+            Math.random() * 500;
+
+        grass.position.y =
+            0;
+
+        const scale =
+            0.5 +
+            Math.random() * 0.8;
+
+        grass.scale.set(
+            scale,
+            scale,
+            scale
+        );
+
+        scene.add(grass);
+
+        roadObjects.push(grass);
+    }
+
+
+    // ======================================
+    // LAMPU JALAN
+    // ======================================
+
+    for (
+        let z = -25;
+        z > -500;
+        z -= 35
+    ) {
+
+        const lampLeft =
+            createStreetLight();
+
+        lampLeft.position.set(
+            -8,
+            0,
+            z
+        );
+
+        scene.add(
+            lampLeft
+        );
+
+        roadObjects.push(
+            lampLeft
+        );
+
+
+        const lampRight =
+            createStreetLight();
+
+        lampRight.position.set(
+            8,
+            0,
+            z
+        );
+
+        lampRight.scale.x =
+            -1;
+
+        scene.add(
+            lampRight
+        );
+
+        roadObjects.push(
+            lampRight
+        );
+    }
+
+
+    // ======================================
+    // PAPAN PETUNJUK
+    // ======================================
+
+    for (
+        let z = -100;
+        z > -500;
+        z -= 150
+    ) {
+
+        const sign =
+            createRoadSign();
+
+        const side =
+            Math.random() > 0.5
+                ? 1
+                : -1;
+
+        sign.position.set(
+            side * 7.5,
+            0,
+            z
+        );
+
+        scene.add(sign);
+
+        roadObjects.push(sign);
+    }
+
+
+    // ======================================
+    // GUNUNG / BUKIT JAUH
+    // ======================================
+
+    createMountains();
+}
+
+
+// ==========================================
+// BATU
+// ==========================================
+
+function createRock() {
+
+    const rock =
+        new THREE.Group();
+
+    const geometry =
+        new THREE.DodecahedronGeometry(
+            0.45,
+            0
+        );
+
+    const material =
+        new THREE.MeshLambertMaterial({
+            color: 0x777777
+        });
+
+    const mesh =
+        new THREE.Mesh(
+            geometry,
+            material
+        );
+
+    mesh.scale.y =
+        0.65;
+
+    rock.add(mesh);
+
+    return rock;
+}
+
+
+// ==========================================
+// RUMPUT
+// ==========================================
+
+function createGrass() {
+
+    const grass =
+        new THREE.Group();
+
+    const material =
+        new THREE.MeshLambertMaterial({
+            color: 0x2e7d32
+        });
+
+    for (
+        let i = 0;
+        i < 3;
+        i++
+    ) {
+
+        const geometry =
+            new THREE.BoxGeometry(
+                0.06,
+                0.5 +
+                Math.random() * 0.35,
+                0.06
+            );
+
+        const blade =
+            new THREE.Mesh(
+                geometry,
+                material
+            );
+
+        blade.position.x =
+            (Math.random() - 0.5) *
+            0.5;
+
+        blade.position.y =
+            0.25;
+
+        blade.rotation.z =
+            (Math.random() - 0.5) *
+            0.5;
+
+        grass.add(blade);
+    }
+
+    return grass;
+}
+
+
+// ==========================================
+// PAPAN PETUNJUK JALAN
+// ==========================================
+
+function createRoadSign() {
+
+    const sign =
+        new THREE.Group();
+
+
+    // TIANG
+
+    const poleGeometry =
+        new THREE.CylinderGeometry(
+            0.08,
+            0.08,
+            2.2,
+            8
+        );
+
+    const poleMaterial =
+        new THREE.MeshLambertMaterial({
+            color: 0x555555
+        });
+
+    const pole =
+        new THREE.Mesh(
+            poleGeometry,
+            poleMaterial
+        );
+
+    pole.position.y =
+        1.1;
+
+    sign.add(pole);
+
+
+    // PAPAN
+
+    const boardGeometry =
+        new THREE.BoxGeometry(
+            1.5,
+            0.75,
+            0.08
+        );
+
+    const boardMaterial =
+        new THREE.MeshLambertMaterial({
+            color: 0x1976d2
+        });
+
+    const board =
+        new THREE.Mesh(
+            boardGeometry,
+            boardMaterial
+        );
+
+    board.position.y =
+        2.0;
+
+    sign.add(board);
+
+
+    // GARIS PUTIH
+
+    const stripeGeometry =
+        new THREE.BoxGeometry(
+            1.15,
+            0.08,
+            0.1
+        );
+
+    const stripeMaterial =
+        new THREE.MeshBasicMaterial({
+            color: 0xffffff
+        });
+
+    const stripe =
+        new THREE.Mesh(
+            stripeGeometry,
+            stripeMaterial
+        );
+
+    stripe.position.set(
+        0,
+        2.0,
+        -0.06
+    );
+
+    sign.add(stripe);
+
+
+    return sign;
+}
+
+
+// ==========================================
+// GUNUNG / BUKIT JAUH
+// ==========================================
+
+function createMountains() {
+
+    for (
+        let i = 0;
+        i < 8;
+        i++
+    ) {
+
+        const mountainGeometry =
+            new THREE.ConeGeometry(
+                12 +
+                Math.random() * 8,
+                18 +
+                Math.random() * 12,
+                6
+            );
+
+        const mountainMaterial =
+            new THREE.MeshLambertMaterial({
+                color:
+                    0x5f8060
+            });
+
+        const mountain =
+            new THREE.Mesh(
+                mountainGeometry,
+                mountainMaterial
+            );
+
+        mountain.position.x =
+            -45 +
+            i * 13;
+
+        mountain.position.y =
+            7;
+
+        mountain.position.z =
+            -180 -
+            Math.random() * 100;
+
+        mountain.scale.x =
+            1.5;
+
+        scene.add(
+            mountain
+        );
+
+        roadObjects.push(
+            mountain
+        );
+    }
+}
+```
 
 
     // ======================================
@@ -292,7 +823,7 @@ function init() {
     // ======================================
 
     animate();
-}
+
 
 
 // ==========================================
@@ -789,4 +1320,4 @@ function createPlayerCar() {
     // ======================================
     // WINDSHIELD
     // ========
-```
+}
