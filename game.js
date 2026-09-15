@@ -32,6 +32,31 @@ let speed = 0;
 let distance = 0;
 let score = 0;
 let level = 1;
+// ==========================================
+// LEVEL SYSTEM
+// ==========================================
+
+const LEVEL_DISTANCE = 500;
+
+const TOTAL_LEVELS = 5;
+
+let currentLevel = 1;
+
+const levelNames = [
+    "HUTAN",
+    "PERUMAHAN",
+    "HUTAN LEBAT",
+    "PEGUNUNGAN",
+    "JALAN LAUT"
+];
+
+const levelColors = [
+    0x87ceeb, // Level 1 - Hutan
+    0x9ed8ff, // Level 2 - Perumahan
+    0x6fa8dc, // Level 3 - Hutan Lebat
+    0xb8c6d1, // Level 4 - Gunung
+    0xffb36b  // Level 5 - Laut / sunset
+];
 
 let bestScore =
     Number(
@@ -73,6 +98,177 @@ let cameraBasePosition = {
 
 function init() {
 
+    // ==========================================
+// LEVEL MANAGER
+// ==========================================
+
+function updateLevelSystem() {
+
+    const calculatedLevel =
+        Math.min(
+            TOTAL_LEVELS,
+            Math.floor(
+                distance / LEVEL_DISTANCE
+            ) + 1
+        );
+
+    if (
+        calculatedLevel !== currentLevel
+    ) {
+
+        currentLevel =
+            calculatedLevel;
+
+        level =
+            currentLevel;
+
+        onLevelChanged(
+            currentLevel
+        );
+    }
+}
+
+
+// ==========================================
+// LEVEL CHANGED
+// ==========================================
+
+function onLevelChanged(
+    newLevel
+) {
+
+    console.log(
+        "LEVEL BERUBAH:",
+        newLevel,
+        levelNames[newLevel - 1]
+    );
+
+
+    // ======================================
+    // UBAH WARNA LANGIT
+    // ======================================
+
+    if (
+        scene &&
+        levelColors[newLevel - 1]
+    ) {
+
+        scene.background =
+            new THREE.Color(
+                levelColors[newLevel - 1]
+            );
+    }
+
+
+    // ======================================
+    // NOTIFIKASI LEVEL
+    // ======================================
+
+    showLevelNotification(
+        newLevel
+    );
+}
+
+
+// ==========================================
+// LEVEL NOTIFICATION
+// ==========================================
+
+function showLevelNotification(
+    newLevel
+) {
+
+    let notification =
+        document.getElementById(
+            "levelNotification"
+        );
+
+
+    if (!notification) {
+
+        notification =
+            document.createElement(
+                "div"
+            );
+
+        notification.id =
+            "levelNotification";
+
+
+        notification.style.position =
+            "fixed";
+
+        notification.style.top =
+            "25%";
+
+        notification.style.left =
+            "50%";
+
+        notification.style.transform =
+            "translate(-50%, -50%)";
+
+        notification.style.zIndex =
+            "9999";
+
+        notification.style.textAlign =
+            "center";
+
+        notification.style.fontFamily =
+            "Arial, sans-serif";
+
+        notification.style.color =
+            "#ffffff";
+
+        notification.style.textShadow =
+            "0 3px 8px #000000";
+
+        notification.style.pointerEvents =
+            "none";
+
+
+        document.body.appendChild(
+            notification
+        );
+    }
+
+
+    notification.innerHTML =
+        `
+        <div style="
+            font-size: 22px;
+            font-weight: bold;
+            margin-bottom: 8px;
+        ">
+            LEVEL ${newLevel}
+        </div>
+
+        <div style="
+            font-size: 36px;
+            font-weight: 900;
+        ">
+            ${levelNames[newLevel - 1]}
+        </div>
+        `;
+
+
+    notification.style.opacity =
+        "1";
+
+
+    notification.style.transition =
+        "opacity 1s ease";
+
+
+    setTimeout(
+        function () {
+
+            notification.style.opacity =
+                "0";
+
+        },
+        2500
+    );
+}
     console.log(
         "Lexa Speed Race 3D dimulai"
     );
@@ -2058,6 +2254,528 @@ function updateCollisionEffect() {
 }
 
 // ==========================================
+// LEVEL SYSTEM
+// ==========================================
+
+function updateLevelSystem() {
+
+    // Jarak yang dibutuhkan untuk naik level
+    const LEVEL_DISTANCE = 500;
+
+    // Hitung level berdasarkan jarak
+    const newLevel =
+        Math.min(
+            5,
+            Math.floor(distance / LEVEL_DISTANCE) + 1
+        );
+
+    // Jika level berubah
+    if (newLevel !== level) {
+
+        level = newLevel;
+
+        console.log(
+            "LEVEL SEKARANG:",
+            level
+        );
+
+        // Ganti lingkungan sesuai level
+        changeEnvironmentByLevel(level);
+
+        // Update tulisan level jika tersedia
+        const levelElement =
+            document.getElementById("level");
+
+        if (levelElement) {
+
+            levelElement.textContent =
+                "LEVEL " + level;
+        }
+    }
+}
+
+
+// ==========================================
+// CHANGE ENVIRONMENT BY LEVEL
+// ==========================================
+
+function changeEnvironmentByLevel(currentLevel) {
+
+    console.log(
+        "Mengubah lingkungan ke level:",
+        currentLevel
+    );
+
+    // ======================================
+    // LEVEL 1 - HUTAN
+    // ======================================
+
+    if (currentLevel === 1) {
+
+        scene.background =
+            new THREE.Color(
+                0x87ceeb
+            );
+
+        console.log(
+            "Lingkungan: HUTAN"
+        );
+    }
+
+
+    // ======================================
+    // LEVEL 2 - PERUMAHAN
+    // ======================================
+
+    else if (currentLevel === 2) {
+
+        scene.background =
+            new THREE.Color(
+                0x9bd7ff
+            );
+
+        console.log(
+            "Lingkungan: PERUMAHAN"
+        );
+    }
+
+
+    // ======================================
+    // LEVEL 3 - HUTAN
+    // ======================================
+
+    else if (currentLevel === 3) {
+
+        scene.background =
+            new THREE.Color(
+                0x78c850
+            );
+
+        console.log(
+            "Lingkungan: HUTAN LEVEL 3"
+        );
+    }
+
+
+    // ======================================
+    // LEVEL 4 - GUNUNG
+    // ======================================
+
+    else if (currentLevel === 4) {
+
+        scene.background =
+            new THREE.Color(
+                0x9ec5e8
+            );
+
+        console.log(
+            "Lingkungan: PEGUNUNGAN"
+        );
+    }
+
+
+    // ======================================
+    // LEVEL 5 - LAUT
+    // ======================================
+
+    else if (currentLevel === 5) {
+
+        scene.background =
+            new THREE.Color(
+                0x4fc3f7
+            );
+
+        console.log(
+            "Lingkungan: LAUT"
+        );
+    }
+}
+
+
+
+// ==========================================
+// CHANGE TO LEVEL 2
+// ==========================================
+
+
+// ==========================================
+// LEVEL MESSAGE
+// ==========================================
+
+function showLevelMessage(
+    title,
+    subtitle
+) {
+
+    let message =
+        document.getElementById(
+            "levelMessage"
+        );
+
+
+    // Jika belum ada, buat otomatis
+    if (!message) {
+
+        message =
+            document.createElement(
+                "div"
+            );
+
+        message.id =
+            "levelMessage";
+
+        message.style.position =
+            "fixed";
+
+        message.style.left =
+            "50%";
+
+        message.style.top =
+            "35%";
+
+        message.style.transform =
+            "translate(-50%, -50%)";
+
+        message.style.textAlign =
+            "center";
+
+        message.style.color =
+            "#ffffff";
+
+        message.style.fontFamily =
+            "Arial, sans-serif";
+
+        message.style.fontWeight =
+            "bold";
+
+        message.style.textShadow =
+            "0 3px 8px rgba(0,0,0,0.8)";
+
+        message.style.zIndex =
+            "9999";
+
+        message.style.pointerEvents =
+            "none";
+
+        document.body.appendChild(
+            message
+        );
+    }
+
+
+    message.innerHTML =
+
+        `<div style="
+            font-size:42px;
+            color:#ffd600;
+        ">
+            ${title}
+        </div>
+
+        <div style="
+            font-size:24px;
+            margin-top:8px;
+        ">
+            ${subtitle}
+        </div>`;
+
+
+    message.style.opacity =
+        "1";
+
+
+    message.style.transition =
+        "opacity 1s";
+
+
+    clearTimeout(
+        levelTransitionTimer
+    );
+
+
+    levelTransitionTimer =
+        setTimeout(function() {
+
+            message.style.opacity =
+                "0";
+
+        }, 2500);
+}
+
+// ==========================================
+// LEVEL 2 - RESIDENTIAL ENVIRONMENT
+// ==========================================
+
+function createResidentialEnvironment() {
+
+    // Jangan membuat ulang rumah
+    // jika sudah pernah dibuat
+    if (
+        scene.getObjectByName(
+            "ResidentialEnvironment"
+        )
+    ) {
+
+        return;
+    }
+
+
+    const residentialGroup =
+        new THREE.Group();
+
+
+    residentialGroup.name =
+        "ResidentialEnvironment";
+
+
+    // ======================================
+    // RUMAH KIRI
+    // ======================================
+
+    for (
+        let z = -30;
+        z > -500;
+        z -= 45
+    ) {
+
+        createHouse(
+            -13,
+            z,
+            residentialGroup
+        );
+    }
+
+
+    // ======================================
+    // RUMAH KANAN
+    // ======================================
+
+    for (
+        let z = -52;
+        z > -500;
+        z -= 45
+    ) {
+
+        createHouse(
+            13,
+            z,
+            residentialGroup
+        );
+    }
+
+
+    scene.add(
+        residentialGroup
+    );
+}
+
+// ==========================================
+// CREATE HOUSE
+// ==========================================
+
+function createHouse(
+    x,
+    z,
+    parent
+) {
+
+    const house =
+        new THREE.Group();
+
+
+    // ======================================
+    // BADAN RUMAH
+    // ======================================
+
+    const bodyGeometry =
+        new THREE.BoxGeometry(
+            5,
+            3,
+            5
+        );
+
+
+    const bodyMaterial =
+        new THREE.MeshLambertMaterial({
+            color:
+                Math.random() > 0.5
+                    ? 0xf4e1c1
+                    : 0xe8d5b5
+        });
+
+
+    const body =
+        new THREE.Mesh(
+            bodyGeometry,
+            bodyMaterial
+        );
+
+
+    body.position.y =
+        1.5;
+
+
+    house.add(
+        body
+    );
+
+
+    // ======================================
+    // ATAP
+    // ======================================
+
+    const roofGeometry =
+        new THREE.ConeGeometry(
+            3.8,
+            2,
+            4
+        );
+
+
+    const roofMaterial =
+        new THREE.MeshLambertMaterial({
+            color: 0xb23a32
+        });
+
+
+    const roof =
+        new THREE.Mesh(
+            roofGeometry,
+            roofMaterial
+        );
+
+
+    roof.position.y =
+        4;
+
+
+    roof.rotation.y =
+        Math.PI / 4;
+
+
+    house.add(
+        roof
+    );
+
+
+    // ======================================
+    // PINTU
+    // ======================================
+
+    const doorGeometry =
+        new THREE.BoxGeometry(
+            0.9,
+            1.6,
+            0.12
+        );
+
+
+    const doorMaterial =
+        new THREE.MeshLambertMaterial({
+            color: 0x5d4037
+        });
+
+
+    const door =
+        new THREE.Mesh(
+            doorGeometry,
+            doorMaterial
+        );
+
+
+    door.position.set(
+        0,
+        0.8,
+        -2.56
+    );
+
+
+    house.add(
+        door
+    );
+
+
+    // ======================================
+    // JENDELA KIRI
+    // ======================================
+
+    createWindow(
+        -1.5,
+        1.7,
+        -2.58,
+        house
+    );
+
+
+    // ======================================
+    // JENDELA KANAN
+    // ======================================
+
+    createWindow(
+        1.5,
+        1.7,
+        -2.58,
+        house
+    );
+
+
+    house.position.set(
+        x,
+        0,
+        z
+    );
+
+
+    parent.add(
+        house
+    );
+}
+
+// ==========================================
+// HOUSE WINDOW
+// ==========================================
+
+function createWindow(
+    x,
+    y,
+    z,
+    parent
+) {
+
+    const geometry =
+        new THREE.BoxGeometry(
+            0.9,
+            0.9,
+            0.1
+        );
+
+
+    const material =
+        new THREE.MeshLambertMaterial({
+            color: 0x81d4fa
+        });
+
+
+    const windowMesh =
+        new THREE.Mesh(
+            geometry,
+            material
+        );
+
+
+    windowMesh.position.set(
+        x,
+        y,
+        z
+    );
+
+
+    parent.add(
+        windowMesh
+    );
+}
+
+// ==========================================
 // UPDATE GAME
 // ==========================================
 
@@ -2138,6 +2856,8 @@ function updateGame() {
 
     distance +=
         movement;
+
+        updateLevelSystem();
 
     // SCORE
 
@@ -2457,7 +3177,10 @@ function restartGame() {
 
     score = 0;
 
+
     level = 1;
+
+currentLevel = 1;
 
     gameOverState = false;
 
