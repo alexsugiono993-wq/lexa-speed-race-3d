@@ -2,7 +2,23 @@ import * as THREE from './three.module.js';
 
 /* =========================================================
    LEXA SPEED RACE 3D
-   STEP 5 - MAIN MENU + LEVEL SELECT
+   STABLE VERSION
+   - Main Menu
+   - Level Select
+   - 5 Maps
+   - Working Gas / Brake
+   - Working Steering
+   - Moving Road
+   - Moving Environment
+   - Moving Enemy Cars
+   - Collision
+   - Score
+   - Best Score
+   - Level Unlock
+========================================================= */
+
+/* =========================================================
+   THREE CORE
 ========================================================= */
 
 let scene;
@@ -10,17 +26,15 @@ let camera;
 let renderer;
 let car;
 
+let initialized = false;
+
 let enemyCars = [];
 let roadObjects = [];
+let collisionParticles = [];
 
-let jumlahEnemy = 4;
-
-const enemyColors = [
-  0x1565c0,
-  0xff9800,
-  0x7b1fa2,
-  0x212121
-];
+/* =========================================================
+   GAME STATE
+========================================================= */
 
 let speed = 0;
 let distance = 0;
@@ -33,39 +47,73 @@ let bestScore =
 let unlockedLevel =
   Number(localStorage.getItem("lexaUnlockedLevel")) || 1;
 
-unlockedLevel = Math.max(1, Math.min(unlockedLevel, 5));
+unlockedLevel =
+  THREE.MathUtils.clamp(unlockedLevel, 1, 5);
 
 let selectedStartLevel = 1;
+
 let gameStarted = false;
 let gameOverState = false;
 
 let currentMap = 1;
 
-const MAX_SPEED = 12;
-const ACCELERATION = 0.12;
-const NATURAL_DECELERATION = 0.055;
-const BRAKE_POWER = 0.28;
+/* =========================================================
+   GAME PHYSICS
+========================================================= */
 
-const STEER_ACCELERATION = 0.035;
-const STEER_MAX_SPEED = 0.24;
-const STEER_DECELERATION = 0.055;
+const MAX_SPEED = 12;
+
+const ACCELERATION = 0.22;
+const NATURAL_DECELERATION = 0.075;
+const BRAKE_POWER = 0.30;
+
+const STEER_ACCELERATION = 0.045;
+const STEER_MAX_SPEED = 0.30;
+const STEER_DECELERATION = 0.065;
+
+/*
+  Faktor ini menentukan seberapa cepat dunia
+  bergerak ke arah pemain.
+*/
+const WORLD_SPEED_MULTIPLIER = 0.18;
+
+/*
+  Kecepatan dasar mobil musuh.
+*/
+const ENEMY_SPEED_MIN = 0.08;
+const ENEMY_SPEED_MAX = 0.22;
+
+/* =========================================================
+   ROAD
+========================================================= */
+
+const WORLD_LENGTH = 720;
+
+const ROAD_WIDTH = 12;
+const ROAD_SEGMENT_LENGTH = 16;
+
+const ROAD_LIMIT =
+  ROAD_WIDTH / 2 - 1.25;
 
 let steeringVelocity = 0;
 let playerRoadOffset = 0;
 
-const WORLD_LENGTH = 720;
-const ROAD_WIDTH = 12;
-const ROAD_SEGMENT_LENGTH = 16;
+/* =========================================================
+   INPUT
+========================================================= */
 
 let steerLeft = false;
 let steerRight = false;
 let gasPressed = false;
 let brakePressed = false;
 
-let collisionParticles = [];
+/* =========================================================
+   CAMERA
+========================================================= */
 
 let cameraShakeTime = 0;
-const cameraShakeDuration = 0.5;
+
+const CAMERA_SHAKE_DURATION = 0.5;
 
 const cameraBasePosition = {
   x: 0,
@@ -74,11 +122,25 @@ const cameraBasePosition = {
 };
 
 /* =========================================================
+   ENEMY COLORS
+========================================================= */
+
+const enemyColors = [
+  0x1565c0,
+  0xff9800,
+  0x7b1fa2,
+  0x212121,
+  0x00897b,
+  0xc62828
+];
+
+const jumlahEnemy = 5;
+
+/* =========================================================
    MAPS
 ========================================================= */
 
 const MAPS = {
-
   1: {
     name: "GREEN VALLEY",
     sky: 0x87ceeb,
@@ -87,9 +149,6 @@ const MAPS = {
     road: 0x292929,
     edge: 0xffd600,
     curveStrength: 1.0,
-    treeCount: 50,
-    bushCount: 70,
-    lightCount: 20,
     environment: "green"
   },
 
@@ -101,9 +160,6 @@ const MAPS = {
     road: 0x252525,
     edge: 0xffc107,
     curveStrength: 1.35,
-    treeCount: 90,
-    bushCount: 100,
-    lightCount: 14,
     environment: "forest"
   },
 
@@ -115,9 +171,6 @@ const MAPS = {
     road: 0x303030,
     edge: 0xffffff,
     curveStrength: 1.75,
-    treeCount: 60,
-    bushCount: 55,
-    lightCount: 12,
     environment: "mountain"
   },
 
@@ -129,9 +182,6 @@ const MAPS = {
     road: 0x343434,
     edge: 0xffe082,
     curveStrength: 1.15,
-    treeCount: 12,
-    bushCount: 30,
-    lightCount: 10,
     environment: "desert"
   },
 
@@ -143,12 +193,8 @@ const MAPS = {
     road: 0x191919,
     edge: 0x00e5ff,
     curveStrength: 1.45,
-    treeCount: 8,
-    bushCount: 15,
-    lightCount: 35,
     environment: "night"
   }
-
 };
 
 /* =========================================================
@@ -207,18 +253,34 @@ const levelName =
 function updateMenu() {
 
   unlockedLevel =
-    Number(localStorage.getItem("lexaUnlockedLevel")) || 1;
+    Number(
+      localStorage.getItem(
+        "lexaUnlockedLevel"
+      )
+    ) || 1;
 
   unlockedLevel =
-    Math.max(1, Math.min(unlockedLevel, 5));
+    THREE.MathUtils.clamp(
+      unlockedLevel,
+      1,
+      5
+    );
 
-  menuUnlockedLevel.textContent =
-    unlockedLevel;
+  if (menuUnlockedLevel) {
+    menuUnlockedLevel.textContent =
+      unlockedLevel;
+  }
 
   renderLevelList();
 }
 
+/* =========================================================
+   LEVEL LIST
+========================================================= */
+
 function renderLevelList() {
+
+  if (!levelList) return;
 
   levelList.innerHTML = "";
 
@@ -232,7 +294,8 @@ function renderLevelList() {
 
   for (let i = 1; i <= 5; i++) {
 
-    const unlocked = i <= unlockedLevel;
+    const unlocked =
+      i <= unlockedLevel;
 
     const card =
       document.createElement("button");
@@ -242,17 +305,25 @@ function renderLevelList() {
       (unlocked ? "" : " locked");
 
     card.innerHTML = `
-      <div class="level-number">${i}</div>
+      <div class="level-number">
+        ${i}
+      </div>
 
       <div class="level-info">
+
         <div class="level-name">
           ${MAPS[i].name}
         </div>
 
         <div class="level-description">
           ${descriptions[i]}
-          ${unlocked ? "" : " • Selesaikan level sebelumnya"}
+          ${
+            unlocked
+              ? ""
+              : " • Selesaikan level sebelumnya"
+          }
         </div>
+
       </div>
 
       <div class="level-status">
@@ -262,37 +333,69 @@ function renderLevelList() {
 
     if (unlocked) {
 
-      card.addEventListener("click", () => {
+      card.addEventListener(
+        "click",
+        () => {
 
-        selectedStartLevel = i;
+          selectedStartLevel = i;
 
-        startGame(i);
-
-      });
-
+          startGame(i);
+        }
+      );
     }
 
     levelList.appendChild(card);
   }
 }
 
+/* =========================================================
+   SHOW MAIN MENU
+========================================================= */
+
 function showMainMenu() {
 
   gameStarted = false;
 
-  mainMenu.classList.remove("hidden");
-  levelMenu.classList.add("hidden");
-  gameElement.classList.add("hidden");
+  gameOverState = false;
 
-  gameOver.classList.add("hidden");
+  stopAllInput();
+
+  mainMenu.classList.remove(
+    "hidden"
+  );
+
+  levelMenu.classList.add(
+    "hidden"
+  );
+
+  gameElement.classList.add(
+    "hidden"
+  );
+
+  gameOver.classList.add(
+    "hidden"
+  );
+
+  levelNotification.classList.add(
+    "hidden"
+  );
 
   updateMenu();
 }
 
+/* =========================================================
+   SHOW LEVEL MENU
+========================================================= */
+
 function showLevelMenu() {
 
-  mainMenu.classList.add("hidden");
-  levelMenu.classList.remove("hidden");
+  mainMenu.classList.add(
+    "hidden"
+  );
+
+  levelMenu.classList.remove(
+    "hidden"
+  );
 
   updateMenu();
 }
@@ -301,37 +404,49 @@ function showLevelMenu() {
    MENU EVENTS
 ========================================================= */
 
-playButton.addEventListener("click", () => {
+playButton.addEventListener(
+  "click",
+  () => {
 
-  selectedStartLevel = 1;
+    selectedStartLevel = 1;
 
-  startGame(1);
+    startGame(1);
+  }
+);
 
-});
+levelButton.addEventListener(
+  "click",
+  () => {
 
-levelButton.addEventListener("click", () => {
+    showLevelMenu();
+  }
+);
 
-  showLevelMenu();
+backMenuButton.addEventListener(
+  "click",
+  () => {
 
-});
+    showMainMenu();
+  }
+);
 
-backMenuButton.addEventListener("click", () => {
+menuButton.addEventListener(
+  "click",
+  () => {
 
-  showMainMenu();
+    showMainMenu();
+  }
+);
 
-});
+restartButton.addEventListener(
+  "click",
+  () => {
 
-menuButton.addEventListener("click", () => {
-
-  showMainMenu();
-
-});
-
-restartButton.addEventListener("click", () => {
-
-  startGame(selectedStartLevel);
-
-});
+    startGame(
+      selectedStartLevel
+    );
+  }
+);
 
 /* =========================================================
    THREE INIT
@@ -339,13 +454,18 @@ restartButton.addEventListener("click", () => {
 
 function initThree() {
 
+  if (initialized) return;
+
+  initialized = true;
+
   scene =
     new THREE.Scene();
 
   camera =
     new THREE.PerspectiveCamera(
       65,
-      window.innerWidth / window.innerHeight,
+      window.innerWidth /
+        window.innerHeight,
       0.1,
       2000
     );
@@ -367,7 +487,10 @@ function initThree() {
   );
 
   renderer.setPixelRatio(
-    Math.min(window.devicePixelRatio, 2)
+    Math.min(
+      window.devicePixelRatio || 1,
+      2
+    )
   );
 
   renderer.shadowMap.enabled = true;
@@ -392,7 +515,6 @@ function initThree() {
   applyMapVisuals();
 
   animate();
-
 }
 
 /* =========================================================
@@ -404,7 +526,7 @@ function createLights() {
   const ambient =
     new THREE.AmbientLight(
       0xffffff,
-      0.65
+      0.7
     );
 
   scene.add(ambient);
@@ -424,7 +546,6 @@ function createLights() {
   sun.castShadow = true;
 
   scene.add(sun);
-
 }
 
 /* =========================================================
@@ -478,6 +599,7 @@ function createPlayerCar() {
     );
 
   body.position.y = 0.65;
+
   body.castShadow = true;
 
   car.add(body);
@@ -526,7 +648,7 @@ function createPlayerCar() {
 
   car.add(cabin);
 
-  /* FRONT GLASS */
+  /* WINDSHIELD */
 
   const windshield =
     new THREE.Mesh(
@@ -572,7 +694,7 @@ function createPlayerCar() {
 
   car.add(rearGlass);
 
-  /* CENTER STRIPE */
+  /* STRIPE */
 
   const stripe =
     new THREE.Mesh(
@@ -633,7 +755,8 @@ function createPlayerCar() {
   const spoilerRight =
     spoilerLeft.clone();
 
-  spoilerRight.position.x = 0.8;
+  spoilerRight.position.x =
+    0.8;
 
   car.add(spoilerRight);
 
@@ -646,51 +769,53 @@ function createPlayerCar() {
       emissiveIntensity: 2
     });
 
-  [-0.75, 0.75].forEach(x => {
+  [-0.75, 0.75].forEach(
+    x => {
 
-    const light =
-      new THREE.Mesh(
-        new THREE.BoxGeometry(
-          0.42,
-          0.18,
-          0.08
-        ),
-        headlightMaterial
+      const light =
+        new THREE.Mesh(
+          new THREE.BoxGeometry(
+            0.42,
+            0.18,
+            0.08
+          ),
+          headlightMaterial
+        );
+
+      light.position.set(
+        x,
+        0.88,
+        -2.18
       );
 
-    light.position.set(
-      x,
-      0.88,
-      -2.18
-    );
-
-    car.add(light);
-
-  });
+      car.add(light);
+    }
+  );
 
   /* SIDE SKIRTS */
 
-  [-1.22, 1.22].forEach(x => {
+  [-1.22, 1.22].forEach(
+    x => {
 
-    const skirt =
-      new THREE.Mesh(
-        new THREE.BoxGeometry(
-          0.12,
-          0.25,
-          3.4
-        ),
-        blackMaterial
+      const skirt =
+        new THREE.Mesh(
+          new THREE.BoxGeometry(
+            0.12,
+            0.25,
+            3.4
+          ),
+          blackMaterial
+        );
+
+      skirt.position.set(
+        x,
+        0.48,
+        0
       );
 
-    skirt.position.set(
-      x,
-      0.48,
-      0
-    );
-
-    car.add(skirt);
-
-  });
+      car.add(skirt);
+    }
+  );
 
   /* WHEELS */
 
@@ -714,55 +839,56 @@ function createPlayerCar() {
     [1.15, 0.42, 1.35]
   ];
 
-  wheelPositions.forEach(pos => {
+  wheelPositions.forEach(
+    pos => {
 
-    const wheel =
-      new THREE.Mesh(
-        new THREE.CylinderGeometry(
-          0.42,
-          0.42,
-          0.28,
-          20
-        ),
-        wheelMaterial
+      const wheel =
+        new THREE.Mesh(
+          new THREE.CylinderGeometry(
+            0.42,
+            0.42,
+            0.28,
+            20
+          ),
+          wheelMaterial
+        );
+
+      wheel.rotation.z =
+        Math.PI / 2;
+
+      wheel.position.set(
+        pos[0],
+        pos[1],
+        pos[2]
       );
 
-    wheel.rotation.z =
-      Math.PI / 2;
+      wheel.castShadow = true;
 
-    wheel.position.set(
-      pos[0],
-      pos[1],
-      pos[2]
-    );
+      car.add(wheel);
 
-    wheel.castShadow = true;
+      const rim =
+        new THREE.Mesh(
+          new THREE.CylinderGeometry(
+            0.19,
+            0.19,
+            0.3,
+            16
+          ),
+          rimMaterial
+        );
 
-    car.add(wheel);
+      rim.rotation.z =
+        Math.PI / 2;
 
-    const rim =
-      new THREE.Mesh(
-        new THREE.CylinderGeometry(
-          0.19,
-          0.19,
-          0.3,
-          16
-        ),
-        rimMaterial
+      rim.position.set(
+        pos[0],
+        pos[1],
+        pos[2]
       );
 
-    rim.rotation.z =
-      Math.PI / 2;
-
-    rim.position.set(
-      pos[0],
-      pos[1],
-      pos[2]
-    );
-
-    car.add(rim);
-
-  });
+      car.add(rim);
+    }
+  );
 
   car.position.set(
     0,
@@ -771,7 +897,6 @@ function createPlayerCar() {
   );
 
   scene.add(car);
-
 }
 
 /* =========================================================
@@ -787,7 +912,8 @@ function createWorld() {
         2000
       ),
       new THREE.MeshStandardMaterial({
-        color: MAPS[1].ground
+        color:
+          MAPS[1].ground
       })
     );
 
@@ -812,11 +938,11 @@ function createWorld() {
   ) {
 
     createRoadSegment(z);
-
   }
 
-  createEnvironment();
+  /* ENVIRONMENT */
 
+  createEnvironment();
 }
 
 /* =========================================================
@@ -829,18 +955,40 @@ function getRoadCurve(z) {
     MAPS[currentMap];
 
   const t =
-    Math.abs(z) / WORLD_LENGTH;
+    Math.abs(z) /
+    WORLD_LENGTH;
 
   return (
-    Math.sin(t * Math.PI * 3.0) * 4.0 * map.curveStrength +
-    Math.sin(t * Math.PI * 7.0 + 1.2) * 1.8 * map.curveStrength +
-    Math.sin(t * Math.PI * 13.0 + 0.4) * 0.8 * map.curveStrength
-  );
+    Math.sin(
+      t *
+      Math.PI *
+      3.0
+    ) *
+    4.0 *
+    map.curveStrength +
 
+    Math.sin(
+      t *
+      Math.PI *
+      7.0 +
+      1.2
+    ) *
+    1.8 *
+    map.curveStrength +
+
+    Math.sin(
+      t *
+      Math.PI *
+      13.0 +
+      0.4
+    ) *
+    0.8 *
+    map.curveStrength
+  );
 }
 
 /* =========================================================
-   ROAD OBJECT
+   ROAD OBJECT REGISTRATION
 ========================================================= */
 
 function registerRoadObject(
@@ -851,10 +999,18 @@ function registerRoadObject(
   rotateWithRoad = true
 ) {
 
-  object.userData.roadZ = roadZ;
-  object.userData.roadOffset = roadOffset;
-  object.userData.roadY = roadY;
-  object.userData.rotateWithRoad = rotateWithRoad;
+  object.userData.roadZ =
+    roadZ;
+
+  object.userData.roadOffset =
+    roadOffset;
+
+  object.userData.roadY =
+    roadY;
+
+  object.userData.rotateWithRoad =
+    rotateWithRoad;
+
   object.userData.baseRotationY =
     object.rotation.y;
 
@@ -862,17 +1018,20 @@ function registerRoadObject(
 
   scene.add(object);
 
-  updateRoadObjectTransform(object);
-
+  updateRoadObjectTransform(
+    object
+  );
 }
 
 /* =========================================================
-   ROAD TRANSFORM
+   ROAD OBJECT TRANSFORM
 ========================================================= */
 
-function updateRoadObjectTransform(object) {
+function updateRoadObjectTransform(
+  object
+) {
 
-  const roadZ =
+  let roadZ =
     object.userData.roadZ;
 
   const offset =
@@ -909,9 +1068,7 @@ function updateRoadObjectTransform(object) {
     object.rotation.y =
       angle +
       object.userData.baseRotationY;
-
   }
-
 }
 
 /* =========================================================
@@ -922,6 +1079,8 @@ function createRoadSegment(z) {
 
   const map =
     MAPS[currentMap];
+
+  /* ROAD */
 
   const road =
     new THREE.Mesh(
@@ -934,6 +1093,9 @@ function createRoadSegment(z) {
         color: map.road
       })
     );
+
+  road.userData.roadType =
+    "road";
 
   registerRoadObject(
     road,
@@ -952,13 +1114,16 @@ function createRoadSegment(z) {
       new THREE.BoxGeometry(
         0.18,
         0.025,
-        ROAD_SEGMENT_LENGTH * 0.55
+        ROAD_SEGMENT_LENGTH *
+          0.55
       ),
       new THREE.MeshStandardMaterial({
-        color: 0xffffff,
-        emissive: 0x222222
+        color: 0xffffff
       })
     );
+
+  center.userData.roadType =
+    "center";
 
   registerRoadObject(
     center,
@@ -968,62 +1133,78 @@ function createRoadSegment(z) {
     true
   );
 
-  /* EDGES */
+  /* ROAD EDGES */
 
-  [-1, 1].forEach(side => {
+  [-1, 1].forEach(
+    side => {
 
-    const edge =
-      new THREE.Mesh(
-        new THREE.BoxGeometry(
-          0.18,
-          0.04,
-          ROAD_SEGMENT_LENGTH
-        ),
-        new THREE.MeshStandardMaterial({
-          color: map.edge,
-          emissive:
-            currentMap === 5
-              ? map.edge
-              : 0x000000
-        })
+      const edge =
+        new THREE.Mesh(
+          new THREE.BoxGeometry(
+            0.18,
+            0.04,
+            ROAD_SEGMENT_LENGTH
+          ),
+          new THREE.MeshStandardMaterial({
+            color: map.edge,
+            emissive:
+              currentMap === 5
+                ? map.edge
+                : 0x000000
+          })
+        );
+
+      edge.userData.roadType =
+        "edge";
+
+      registerRoadObject(
+        edge,
+        z,
+        side *
+          (
+            ROAD_WIDTH / 2 -
+            0.15
+          ),
+        0.05,
+        true
       );
+    }
+  );
 
-    registerRoadObject(
-      edge,
-      z,
-      side * (ROAD_WIDTH / 2 - 0.15),
-      0.05,
-      true
-    );
+  /* SHOULDER */
 
-  });
+  [-1, 1].forEach(
+    side => {
 
-  /* SHOULDERS */
+      const shoulder =
+        new THREE.Mesh(
+          new THREE.BoxGeometry(
+            2.4,
+            0.1,
+            ROAD_SEGMENT_LENGTH
+          ),
+          new THREE.MeshStandardMaterial({
+            color:
+              map.shoulder
+          })
+        );
 
-  [-1, 1].forEach(side => {
+      shoulder.userData.roadType =
+        "shoulder";
 
-    const shoulder =
-      new THREE.Mesh(
-        new THREE.BoxGeometry(
-          2.4,
-          0.1,
-          ROAD_SEGMENT_LENGTH
-        ),
-        new THREE.MeshStandardMaterial({
-          color: map.shoulder
-        })
+      registerRoadObject(
+        shoulder,
+        z,
+        side *
+          (
+            ROAD_WIDTH / 2 +
+            1.25
+          ),
+        -0.02,
+        true
       );
-
-    registerRoadObject(
-      shoulder,
-      z,
-      side * (ROAD_WIDTH / 2 + 1.25),
-      -0.02,
-      true
-    );
-
-  });
-
+    }
+  );
 }
 
 /* =========================================================
@@ -1058,7 +1239,6 @@ function createEnvironment() {
       z,
       offset
     );
-
   }
 
   /* BUSHES */
@@ -1087,7 +1267,6 @@ function createEnvironment() {
       z,
       offset
     );
-
   }
 
   /* MOUNTAINS */
@@ -1107,17 +1286,16 @@ function createEnvironment() {
     createMountain(
       z,
       side *
-      (
-        35 +
-        Math.random() * 35
-      )
+        (
+          35 +
+          Math.random() * 35
+        )
     );
-
   }
 
   /* CACTUS */
 
-  for (let i = 35; i < 65; i++) {
+  for (let i = 0; i < 30; i++) {
 
     const z =
       -20 -
@@ -1132,16 +1310,15 @@ function createEnvironment() {
     createCactus(
       z,
       side *
-      (
-        ROAD_WIDTH / 2 +
-        7 +
-        Math.random() * 18
-      )
+        (
+          ROAD_WIDTH / 2 +
+          7 +
+          Math.random() * 18
+        )
     );
-
   }
 
-  /* CITY BUILDINGS */
+  /* BUILDINGS */
 
   for (let i = 0; i < 45; i++) {
 
@@ -1158,18 +1335,21 @@ function createEnvironment() {
     createBuilding(
       z,
       side *
-      (
-        ROAD_WIDTH / 2 +
-        10 +
-        Math.random() * 22
-      )
+        (
+          ROAD_WIDTH / 2 +
+          10 +
+          Math.random() * 22
+        )
     );
-
   }
 
   /* STREET LIGHTS */
 
-  for (let i = 0; i < 55; i++) {
+  for (
+    let i = 0;
+    i < 55;
+    i++
+  ) {
 
     const z =
       -20 -
@@ -1184,16 +1364,17 @@ function createEnvironment() {
       z,
       1
     );
-
   }
-
 }
 
 /* =========================================================
    TREE
 ========================================================= */
 
-function createTree(z, offset) {
+function createTree(
+  z,
+  offset
+) {
 
   const tree =
     new THREE.Group();
@@ -1244,6 +1425,9 @@ function createTree(z, offset) {
     scale
   );
 
+  tree.userData.roadType =
+    "tree";
+
   registerRoadObject(
     tree,
     z,
@@ -1251,20 +1435,23 @@ function createTree(z, offset) {
     0,
     true
   );
-
 }
 
 /* =========================================================
    BUSH
 ========================================================= */
 
-function createBush(z, offset) {
+function createBush(
+  z,
+  offset
+) {
 
   const bush =
     new THREE.Mesh(
       new THREE.SphereGeometry(
         0.65 +
-        Math.random() * 0.5,
+          Math.random() *
+            0.5,
         8,
         8
       ),
@@ -1280,6 +1467,9 @@ function createBush(z, offset) {
 
   bush.position.y = 0.45;
 
+  bush.userData.roadType =
+    "bush";
+
   registerRoadObject(
     bush,
     z,
@@ -1287,31 +1477,35 @@ function createBush(z, offset) {
     0,
     true
   );
-
 }
 
 /* =========================================================
    MOUNTAIN
 ========================================================= */
 
-function createMountain(z, offset) {
+function createMountain(
+  z,
+  offset
+) {
 
   const mountain =
     new THREE.Mesh(
       new THREE.ConeGeometry(
         8 +
-        Math.random() * 7,
+          Math.random() * 7,
         15 +
-        Math.random() * 12,
+          Math.random() * 12,
         6
       ),
       new THREE.MeshStandardMaterial({
-        color:
-          0x5d665e
+        color: 0x5d665e
       })
     );
 
   mountain.position.y = 7;
+
+  mountain.userData.roadType =
+    "mountain";
 
   registerRoadObject(
     mountain,
@@ -1320,14 +1514,16 @@ function createMountain(z, offset) {
     0,
     false
   );
-
 }
 
 /* =========================================================
    CACTUS
 ========================================================= */
 
-function createCactus(z, offset) {
+function createCactus(
+  z,
+  offset
+) {
 
   const cactus =
     new THREE.Group();
@@ -1374,6 +1570,9 @@ function createCactus(z, offset) {
 
   cactus.add(arm);
 
+  cactus.userData.roadType =
+    "cactus";
+
   registerRoadObject(
     cactus,
     z,
@@ -1381,14 +1580,16 @@ function createCactus(z, offset) {
     0,
     true
   );
-
 }
 
 /* =========================================================
    BUILDING
 ========================================================= */
 
-function createBuilding(z, offset) {
+function createBuilding(
+  z,
+  offset
+) {
 
   const height =
     5 +
@@ -1410,8 +1611,7 @@ function createBuilding(z, offset) {
         depth
       ),
       new THREE.MeshStandardMaterial({
-        color:
-          0x27313a,
+        color: 0x27313a,
         roughness: 0.8
       })
     );
@@ -1419,13 +1619,8 @@ function createBuilding(z, offset) {
   building.position.y =
     height / 2;
 
-  registerRoadObject(
-    building,
-    z,
-    offset,
-    0,
-    false
-  );
+  building.userData.roadType =
+    "building";
 
   if (currentMap === 5) {
 
@@ -1436,7 +1631,11 @@ function createBuilding(z, offset) {
         emissiveIntensity: 1.5
       });
 
-    for (let y = 2; y < height; y += 3) {
+    for (
+      let y = 2;
+      y < height;
+      y += 3
+    ) {
 
       const window =
         new THREE.Mesh(
@@ -1451,22 +1650,31 @@ function createBuilding(z, offset) {
       window.position.set(
         0,
         y,
-        -depth / 2 - 0.03
+        -depth / 2 -
+          0.03
       );
 
       building.add(window);
-
     }
-
   }
 
+  registerRoadObject(
+    building,
+    z,
+    offset,
+    0,
+    false
+  );
 }
 
 /* =========================================================
    STREET LIGHT
 ========================================================= */
 
-function createStreetLight(z, side) {
+function createStreetLight(
+  z,
+  side
+) {
 
   const pole =
     new THREE.Group();
@@ -1517,22 +1725,24 @@ function createStreetLight(z, side) {
 
   pole.add(lamp);
 
+  pole.userData.roadType =
+    "streetLight";
+
   registerRoadObject(
     pole,
     z,
     side *
-    (
-      ROAD_WIDTH / 2 +
-      2.2
-    ),
+      (
+        ROAD_WIDTH / 2 +
+        2.2
+      ),
     0,
     true
   );
-
 }
 
 /* =========================================================
-   ENEMIES
+   ENEMY CARS
 ========================================================= */
 
 function createEnemies() {
@@ -1545,35 +1755,50 @@ function createEnemies() {
 
     const enemy =
       createEnemyCar(
-        enemyColors[i]
+        enemyColors[
+          i %
+          enemyColors.length
+        ]
       );
 
     enemy.userData.roadZ =
-      -30 -
-      i * 55;
+      -35 -
+      i * 65 -
+      Math.random() * 35;
 
     enemy.userData.laneOffset =
-      [-3.2, -1.1, 1.1, 3.2][i];
+      [-3.2, -1.1, 1.1, 3.2][
+        i % 4
+      ];
 
     enemy.userData.speed =
-      0.035 +
-      Math.random() * 0.035;
+      ENEMY_SPEED_MIN +
+      Math.random() *
+        (
+          ENEMY_SPEED_MAX -
+          ENEMY_SPEED_MIN
+        );
+
+    enemy.userData.targetLane =
+      enemy.userData.laneOffset;
 
     scene.add(enemy);
 
     enemyCars.push(enemy);
 
-    updateEnemyTransform(enemy);
-
+    updateEnemyTransform(
+      enemy
+    );
   }
-
 }
 
 /* =========================================================
-   ENEMY CAR
+   ENEMY CAR MODEL
 ========================================================= */
 
-function createEnemyCar(color) {
+function createEnemyCar(
+  color
+) {
 
   const group =
     new THREE.Group();
@@ -1590,6 +1815,8 @@ function createEnemyCar(color) {
       color: 0x111111
     });
 
+  /* BODY */
+
   const body =
     new THREE.Mesh(
       new THREE.BoxGeometry(
@@ -1602,7 +1829,11 @@ function createEnemyCar(color) {
 
   body.position.y = 0.62;
 
+  body.castShadow = true;
+
   group.add(body);
+
+  /* CABIN */
 
   const cabin =
     new THREE.Mesh(
@@ -1622,6 +1853,8 @@ function createEnemyCar(color) {
 
   group.add(cabin);
 
+  /* WHEELS */
+
   const wheelMaterial =
     new THREE.MeshStandardMaterial({
       color: 0x080808
@@ -1634,41 +1867,43 @@ function createEnemyCar(color) {
     [1.05, 0.4, 1.25]
   ];
 
-  positions.forEach(pos => {
+  positions.forEach(
+    pos => {
 
-    const wheel =
-      new THREE.Mesh(
-        new THREE.CylinderGeometry(
-          0.4,
-          0.4,
-          0.25,
-          16
-        ),
-        wheelMaterial
+      const wheel =
+        new THREE.Mesh(
+          new THREE.CylinderGeometry(
+            0.4,
+            0.4,
+            0.25,
+            16
+          ),
+          wheelMaterial
+        );
+
+      wheel.rotation.z =
+        Math.PI / 2;
+
+      wheel.position.set(
+        pos[0],
+        pos[1],
+        pos[2]
       );
 
-    wheel.rotation.z =
-      Math.PI / 2;
-
-    wheel.position.set(
-      pos[0],
-      pos[1],
-      pos[2]
-    );
-
-    group.add(wheel);
-
-  });
+      group.add(wheel);
+    }
+  );
 
   return group;
-
 }
 
 /* =========================================================
    ENEMY TRANSFORM
 ========================================================= */
 
-function updateEnemyTransform(enemy) {
+function updateEnemyTransform(
+  enemy
+) {
 
   const roadX =
     getRoadCurve(
@@ -1695,7 +1930,6 @@ function updateEnemyTransform(enemy) {
       aheadX - roadX,
       -1
     );
-
 }
 
 /* =========================================================
@@ -1704,67 +1938,134 @@ function updateEnemyTransform(enemy) {
 
 function applyMapVisuals() {
 
+  if (!scene) return;
+
   const map =
     MAPS[currentMap];
 
-  if (!scene) return;
-
   scene.background =
-    new THREE.Color(map.sky);
+    new THREE.Color(
+      map.sky
+    );
 
   scene.fog =
     new THREE.Fog(
       map.sky,
-      currentMap === 5 ? 80 : 130,
-      currentMap === 5 ? 650 : 1000
+      currentMap === 5
+        ? 80
+        : 130,
+      currentMap === 5
+        ? 650
+        : 1000
     );
 
-  scene.traverse(object => {
+  /* GROUND */
 
-    if (
-      object.userData &&
-      object.userData.isGround
-    ) {
-
-      object.material.color.set(
-        map.ground
-      );
-
-    }
-
-  });
-
-  roadObjects.forEach(object => {
-
-    if (
-      object.geometry &&
-      object.geometry.type ===
-        "BoxGeometry"
-    ) {
-
-      const material =
-        object.material;
-
-      if (!material) return;
+  scene.traverse(
+    object => {
 
       if (
-        object.geometry.parameters &&
-        object.geometry.parameters.width ===
-          ROAD_WIDTH
+        object.userData &&
+        object.userData.isGround
       ) {
 
-        material.color.set(
-          map.road
+        object.material.color.set(
+          map.ground
         );
+      }
+    }
+  );
 
+  /* ROAD OBJECT COLORS */
+
+  roadObjects.forEach(
+    object => {
+
+      if (
+        !object.userData
+      ) {
+        return;
       }
 
-    }
+      const type =
+        object.userData.roadType;
 
-  });
+      if (
+        type === "road"
+      ) {
+
+        object.material.color.set(
+          map.road
+        );
+      }
+
+      if (
+        type === "edge"
+      ) {
+
+        object.material.color.set(
+          map.edge
+        );
+
+        if (
+          object.material.emissive
+        ) {
+
+          object.material.emissive.set(
+            currentMap === 5
+              ? map.edge
+              : 0x000000
+          );
+        }
+      }
+
+      if (
+        type === "shoulder"
+      ) {
+
+        object.material.color.set(
+          map.shoulder
+        );
+      }
+
+      if (
+        type === "tree"
+      ) {
+
+        object.traverse(
+          child => {
+
+            if (
+              child.material &&
+              child.geometry &&
+              child.geometry.type ===
+                "ConeGeometry"
+            ) {
+
+              child.material.color.set(
+                currentMap === 2
+                  ? 0x164d2a
+                  : 0x208c3c
+              );
+            }
+          }
+        );
+      }
+
+      if (
+        type === "bush"
+      ) {
+
+        object.material.color.set(
+          currentMap === 4
+            ? 0x597d35
+            : 0x2f7d32
+        );
+      }
+    }
+  );
 
   showLevelNotification();
-
 }
 
 /* =========================================================
@@ -1774,6 +2075,14 @@ function applyMapVisuals() {
 let notificationTimer = null;
 
 function showLevelNotification() {
+
+  if (
+    !levelNotification ||
+    !levelNumber ||
+    !levelName
+  ) {
+    return;
+  }
 
   levelNumber.textContent =
     `LEVEL ${currentMap}`;
@@ -1785,36 +2094,45 @@ function showLevelNotification() {
     "hidden"
   );
 
-  clearTimeout(notificationTimer);
+  clearTimeout(
+    notificationTimer
+  );
 
   notificationTimer =
-    setTimeout(() => {
+    setTimeout(
+      () => {
 
-      levelNotification.classList.add(
-        "hidden"
-      );
+        levelNotification.classList.add(
+          "hidden"
+        );
 
-    }, 1800);
-
+      },
+      1800
+    );
 }
 
 /* =========================================================
    START GAME
 ========================================================= */
 
-function startGame(startLevel = 1) {
+function startGame(
+  startLevel = 1
+) {
 
   selectedStartLevel =
-    Math.max(
+    THREE.MathUtils.clamp(
+      Number(startLevel) || 1,
       1,
-      Math.min(
-        Number(startLevel) || 1,
-        5
-      )
+      5
     );
 
-  mainMenu.classList.add("hidden");
-  levelMenu.classList.add("hidden");
+  mainMenu.classList.add(
+    "hidden"
+  );
+
+  levelMenu.classList.add(
+    "hidden"
+  );
 
   gameElement.classList.remove(
     "hidden"
@@ -1829,18 +2147,25 @@ function startGame(startLevel = 1) {
   );
 
   gameStarted = true;
+
   gameOverState = false;
 
+  /* RESET PHYSICS */
+
   speed = 0;
+
   score = 0;
 
   /*
-    Set distance so selected map
-    becomes the starting map.
+    Start distance is based on selected level.
   */
 
   distance =
-    (selectedStartLevel - 1) * 100;
+    (
+      selectedStartLevel -
+      1
+    ) *
+    100;
 
   level =
     selectedStartLevel;
@@ -1849,7 +2174,14 @@ function startGame(startLevel = 1) {
     selectedStartLevel;
 
   steeringVelocity = 0;
+
   playerRoadOffset = 0;
+
+  cameraShakeTime = 0;
+
+  stopAllInput();
+
+  /* RESET PLAYER */
 
   if (car) {
 
@@ -1857,18 +2189,51 @@ function startGame(startLevel = 1) {
       getRoadCurve(5);
 
     car.position.y = 0;
+
     car.position.z = 5;
 
     car.rotation.y = 0;
-
   }
+
+  /* RESET WORLD */
+
+  resetRoadObjects();
+
+  /* RESET ENEMIES */
 
   resetEnemies();
 
   applyMapVisuals();
 
   updateHUD();
+}
 
+/* =========================================================
+   RESET ROAD OBJECTS
+========================================================= */
+
+function resetRoadObjects() {
+
+  roadObjects.forEach(
+    (object, index) => {
+
+      if (
+        object.userData &&
+        typeof object.userData.roadZ ===
+          "number"
+      ) {
+
+        /*
+          Keep original positions.
+          The world will start moving only
+          after GAS is pressed.
+        */
+
+        object.userData.roadZ =
+          object.userData.roadZ;
+      }
+    }
+  );
 }
 
 /* =========================================================
@@ -1883,22 +2248,26 @@ function resetEnemies() {
       enemy.userData.roadZ =
         -35 -
         i * 60 -
-        Math.random() * 40;
+        Math.random() * 60;
 
       enemy.userData.laneOffset =
-        [-3.2, -1.1, 1.1, 3.2][i];
+        [-3.2, -1.1, 1.1, 3.2][
+          i % 4
+        ];
 
       enemy.userData.speed =
-        0.035 +
-        Math.random() * 0.04;
+        ENEMY_SPEED_MIN +
+        Math.random() *
+          (
+            ENEMY_SPEED_MAX -
+            ENEMY_SPEED_MIN
+          );
 
       updateEnemyTransform(
         enemy
       );
-
     }
   );
-
 }
 
 /* =========================================================
@@ -1907,51 +2276,85 @@ function resetEnemies() {
 
 function endGame() {
 
-  if (gameOverState) return;
+  if (gameOverState) {
+    return;
+  }
 
   gameOverState = true;
 
   speed = 0;
 
-  if (score > bestScore) {
+  stopAllInput();
 
-    bestScore = score;
+  if (
+    score >
+    bestScore
+  ) {
+
+    bestScore =
+      Math.floor(score);
 
     localStorage.setItem(
       "lexaBestScore",
       bestScore
     );
-
   }
 
-  document.getElementById(
-    "finalDistance"
-  ).textContent =
-    `${Math.floor(distance)} m`;
+  const finalDistance =
+    document.getElementById(
+      "finalDistance"
+    );
 
-  document.getElementById(
-    "finalScore"
-  ).textContent =
-    Math.floor(score);
+  const finalScore =
+    document.getElementById(
+      "finalScore"
+    );
 
-  document.getElementById(
-    "finalBestScore"
-  ).textContent =
-    Math.floor(bestScore);
+  const finalBestScore =
+    document.getElementById(
+      "finalBestScore"
+    );
 
-  document.getElementById(
-    "finalLevel"
-  ).textContent =
-    currentMap;
+  const finalLevel =
+    document.getElementById(
+      "finalLevel"
+    );
+
+  if (finalDistance) {
+
+    finalDistance.textContent =
+      `${Math.floor(
+        distance
+      )} m`;
+  }
+
+  if (finalScore) {
+
+    finalScore.textContent =
+      Math.floor(score);
+  }
+
+  if (finalBestScore) {
+
+    finalBestScore.textContent =
+      Math.floor(
+        bestScore
+      );
+  }
+
+  if (finalLevel) {
+
+    finalLevel.textContent =
+      currentMap;
+  }
 
   gameOver.classList.remove(
     "hidden"
   );
-
 }
 
 /* =========================================================
-   UNLOCK LEVEL
+   LEVEL UNLOCK
 ========================================================= */
 
 function checkUnlock() {
@@ -1959,7 +2362,10 @@ function checkUnlock() {
   let newUnlocked =
     unlockedLevel;
 
-  if (distance >= 100) {
+  if (
+    distance >= 100
+  ) {
+
     newUnlocked =
       Math.max(
         newUnlocked,
@@ -1967,7 +2373,10 @@ function checkUnlock() {
       );
   }
 
-  if (distance >= 200) {
+  if (
+    distance >= 200
+  ) {
+
     newUnlocked =
       Math.max(
         newUnlocked,
@@ -1975,7 +2384,10 @@ function checkUnlock() {
       );
   }
 
-  if (distance >= 300) {
+  if (
+    distance >= 300
+  ) {
+
     newUnlocked =
       Math.max(
         newUnlocked,
@@ -1983,7 +2395,10 @@ function checkUnlock() {
       );
   }
 
-  if (distance >= 400) {
+  if (
+    distance >= 400
+  ) {
+
     newUnlocked =
       Math.max(
         newUnlocked,
@@ -2003,9 +2418,7 @@ function checkUnlock() {
       "lexaUnlockedLevel",
       unlockedLevel
     );
-
   }
-
 }
 
 /* =========================================================
@@ -2015,8 +2428,11 @@ function checkUnlock() {
 function updateLevel() {
 
   const newMap =
-    Math.min(
-      Math.floor(distance / 100) + 1,
+    THREE.MathUtils.clamp(
+      Math.floor(
+        distance / 100
+      ) + 1,
+      1,
       5
     );
 
@@ -2033,11 +2449,9 @@ function updateLevel() {
     checkUnlock();
 
     applyMapVisuals();
-
   }
 
   checkUnlock();
-
 }
 
 /* =========================================================
@@ -2046,31 +2460,68 @@ function updateLevel() {
 
 function updateHUD() {
 
-  document.getElementById(
-    "speed"
-  ).textContent =
-    Math.floor(speed * 12);
+  const speedElement =
+    document.getElementById(
+      "speed"
+    );
 
-  document.getElementById(
-    "distance"
-  ).textContent =
-    Math.floor(distance);
+  const distanceElement =
+    document.getElementById(
+      "distance"
+    );
 
-  document.getElementById(
-    "score"
-  ).textContent =
-    Math.floor(score);
+  const scoreElement =
+    document.getElementById(
+      "score"
+    );
 
-  document.getElementById(
-    "level"
-  ).textContent =
-    currentMap;
+  const levelElement =
+    document.getElementById(
+      "level"
+    );
 
-  document.getElementById(
-    "bestScore"
-  ).textContent =
-    Math.floor(bestScore);
+  const bestScoreElement =
+    document.getElementById(
+      "bestScore"
+    );
 
+  if (speedElement) {
+
+    speedElement.textContent =
+      Math.floor(
+        speed * 12
+      );
+  }
+
+  if (distanceElement) {
+
+    distanceElement.textContent =
+      Math.floor(
+        distance
+      );
+  }
+
+  if (scoreElement) {
+
+    scoreElement.textContent =
+      Math.floor(
+        score
+      );
+  }
+
+  if (levelElement) {
+
+    levelElement.textContent =
+      currentMap;
+  }
+
+  if (bestScoreElement) {
+
+    bestScoreElement.textContent =
+      Math.floor(
+        bestScore
+      );
+  }
 }
 
 /* =========================================================
@@ -2079,55 +2530,76 @@ function updateHUD() {
 
 function updatePlayer() {
 
-  if (!gameStarted) return;
-  if (gameOverState) return;
+  if (!gameStarted) {
+    return;
+  }
 
-  /* GAS */
+  if (gameOverState) {
+    return;
+  }
+
+  /* =====================================================
+     GAS
+  ===================================================== */
 
   if (gasPressed) {
 
-    speed += ACCELERATION;
+    speed +=
+      ACCELERATION;
 
-    if (speed > MAX_SPEED) {
-      speed = MAX_SPEED;
+    if (
+      speed >
+      MAX_SPEED
+    ) {
+
+      speed =
+        MAX_SPEED;
     }
 
   } else {
 
-    speed -= NATURAL_DECELERATION;
+    speed -=
+      NATURAL_DECELERATION;
 
-    if (speed < 0) {
+    if (
+      speed < 0
+    ) {
+
       speed = 0;
     }
-
   }
 
-  /* BRAKE */
+  /* =====================================================
+     BRAKE
+  ===================================================== */
 
   if (brakePressed) {
 
-    speed -= BRAKE_POWER;
+    speed -=
+      BRAKE_POWER;
 
-    if (speed < 0) {
+    if (
+      speed < 0
+    ) {
+
       speed = 0;
     }
-
   }
 
-  /* STEERING */
+  /* =====================================================
+     STEERING
+  ===================================================== */
 
   if (steerLeft) {
 
     steeringVelocity -=
       STEER_ACCELERATION;
-
   }
 
   if (steerRight) {
 
     steeringVelocity +=
       STEER_ACCELERATION;
-
   }
 
   if (
@@ -2147,7 +2619,6 @@ function updatePlayer() {
       ) {
 
         steeringVelocity = 0;
-
       }
 
     } else if (
@@ -2162,11 +2633,8 @@ function updatePlayer() {
       ) {
 
         steeringVelocity = 0;
-
       }
-
     }
-
   }
 
   steeringVelocity =
@@ -2176,21 +2644,24 @@ function updatePlayer() {
       STEER_MAX_SPEED
     );
 
+  /* =====================================================
+     MOVE PLAYER SIDEWAYS
+  ===================================================== */
+
   playerRoadOffset +=
     steeringVelocity *
-    (0.7 + speed * 0.045);
-
-  const roadLimit =
-    ROAD_WIDTH / 2 - 1.2;
+    (
+      0.65 +
+      speed *
+      0.055
+    );
 
   playerRoadOffset =
     THREE.MathUtils.clamp(
       playerRoadOffset,
-      -roadLimit,
-      roadLimit
+      -ROAD_LIMIT,
+      ROAD_LIMIT
     );
-
-  /* PLAYER POSITION */
 
   const roadX =
     getRoadCurve(5);
@@ -2203,28 +2674,89 @@ function updatePlayer() {
 
   car.position.y =
     Math.sin(
-      performance.now() * 0.015
+      performance.now() *
+      0.015
     ) *
     0.015;
-
-  /* CAR ROTATION */
 
   car.rotation.y =
     steeringVelocity *
     0.8;
 
-  /* DISTANCE */
+  /* =====================================================
+     DISTANCE / SCORE
+  ===================================================== */
 
-  distance +=
+  if (
+    speed > 0
+  ) {
+
+    distance +=
+      speed *
+      0.045;
+
+    score +=
+      speed *
+      0.08;
+  }
+}
+
+/* =========================================================
+   UPDATE ROAD WORLD
+========================================================= */
+
+function updateWorldMovement() {
+
+  if (!gameStarted) {
+    return;
+  }
+
+  if (gameOverState) {
+    return;
+  }
+
+  /*
+    Ini bagian penting.
+
+    Saat GAS ditekan dan speed bertambah,
+    jalan + lingkungan bergerak menuju pemain.
+  */
+
+  if (
+    speed <= 0
+  ) {
+    return;
+  }
+
+  const worldMove =
     speed *
-    0.045;
+    WORLD_SPEED_MULTIPLIER;
 
-  /* SCORE */
+  roadObjects.forEach(
+    object => {
 
-  score +=
-    speed *
-    0.08;
+      object.userData.roadZ +=
+        worldMove;
 
+      /*
+        Kalau object sudah melewati pemain,
+        pindahkan kembali ke jauh di depan.
+      */
+
+      if (
+        object.userData.roadZ >
+        18
+      ) {
+
+        object.userData.roadZ -=
+          WORLD_LENGTH;
+      }
+
+      updateRoadObjectTransform(
+        object
+      );
+    }
+  );
 }
 
 /* =========================================================
@@ -2233,55 +2765,103 @@ function updatePlayer() {
 
 function updateEnemies() {
 
-  if (!gameStarted) return;
-  if (gameOverState) return;
+  if (!gameStarted) {
+    return;
+  }
 
-  enemyCars.forEach(enemy => {
+  if (gameOverState) {
+    return;
+  }
 
-    enemy.userData.roadZ +=
-      enemy.userData.speed;
+  /*
+    Dunia bergerak ke pemain berdasarkan
+    speed player.
 
-    /*
-      Enemy bergerak menuju player.
-      Jika melewati player, reset jauh di depan.
-    */
+    Mobil musuh juga mempunyai speed sendiri,
+    sehingga mereka tidak diam.
+  */
 
-    if (
-      enemy.userData.roadZ > 12
-    ) {
+  const worldMove =
+    speed *
+    WORLD_SPEED_MULTIPLIER;
 
-      enemy.userData.roadZ =
-        -WORLD_LENGTH +
-        Math.random() * 120;
+  enemyCars.forEach(
+    enemy => {
 
-      enemy.userData.laneOffset =
-        [-3.2, -1.1, 1.1, 3.2][
-          Math.floor(
-            Math.random() * 4
-          )
-        ];
+      /*
+        Enemy bergerak relatif terhadap player.
+      */
 
-      enemy.userData.speed =
-        0.035 +
-        Math.random() * 0.05;
+      enemy.userData.roadZ +=
+        enemy.userData.speed -
+        worldMove;
 
+      /*
+        Kalau enemy sudah lewat jauh
+        di belakang pemain, spawn lagi
+        di depan.
+      */
+
+      if (
+        enemy.userData.roadZ >
+        18
+      ) {
+
+        enemy.userData.roadZ =
+          -WORLD_LENGTH +
+          Math.random() *
+          160;
+
+        enemy.userData.laneOffset =
+          [-3.2, -1.1, 1.1, 3.2][
+            Math.floor(
+              Math.random() * 4
+            )
+          ];
+
+        enemy.userData.speed =
+          ENEMY_SPEED_MIN +
+          Math.random() *
+            (
+              ENEMY_SPEED_MAX -
+              ENEMY_SPEED_MIN
+            );
+      }
+
+      /*
+        Kalau terlalu jauh ke belakang,
+        juga spawn kembali di depan.
+      */
+
+      if (
+        enemy.userData.roadZ <
+        -WORLD_LENGTH - 50
+      ) {
+
+        enemy.userData.roadZ =
+          -WORLD_LENGTH +
+          Math.random() *
+          160;
+      }
+
+      updateEnemyTransform(
+        enemy
+      );
+
+      checkCollision(
+        enemy
+      );
     }
-
-    updateEnemyTransform(
-      enemy
-    );
-
-    checkCollision(enemy);
-
-  });
-
+  );
 }
 
 /* =========================================================
    COLLISION
 ========================================================= */
 
-function checkCollision(enemy) {
+function checkCollision(
+  enemy
+) {
 
   const dx =
     Math.abs(
@@ -2302,14 +2882,13 @@ function checkCollision(enemy) {
 
     createCollisionEffect(
       car.position.x,
-      car.position.y + 0.5,
+      car.position.y +
+        0.5,
       car.position.z
     );
 
     endGame();
-
   }
-
 }
 
 /* =========================================================
@@ -2323,15 +2902,20 @@ function createCollisionEffect(
 ) {
 
   cameraShakeTime =
-    cameraShakeDuration;
+    CAMERA_SHAKE_DURATION;
 
-  for (let i = 0; i < 25; i++) {
+  for (
+    let i = 0;
+    i < 25;
+    i++
+  ) {
 
     const particle =
       new THREE.Mesh(
         new THREE.SphereGeometry(
           0.06 +
-          Math.random() * 0.06,
+            Math.random() *
+              0.06,
           6,
           6
         ),
@@ -2351,22 +2935,33 @@ function createCollisionEffect(
 
     particle.userData.velocity =
       new THREE.Vector3(
-        (Math.random() - 0.5) * 0.25,
-        Math.random() * 0.25,
-        (Math.random() - 0.5) * 0.25
+        (
+          Math.random() -
+          0.5
+        ) *
+          0.25,
+
+        Math.random() *
+          0.25,
+
+        (
+          Math.random() -
+          0.5
+        ) *
+          0.25
       );
 
     particle.userData.life =
       1;
 
-    scene.add(particle);
+    scene.add(
+      particle
+    );
 
     collisionParticles.push(
       particle
     );
-
   }
-
 }
 
 /* =========================================================
@@ -2377,7 +2972,8 @@ function updateParticles() {
 
   for (
     let i =
-      collisionParticles.length - 1;
+      collisionParticles.length -
+      1;
     i >= 0;
     i--
   ) {
@@ -2400,22 +2996,24 @@ function updateParticles() {
     );
 
     if (
-      particle.userData.life <= 0
+      particle.userData.life <=
+      0
     ) {
 
       scene.remove(
         particle
       );
 
+      particle.geometry.dispose();
+
+      particle.material.dispose();
+
       collisionParticles.splice(
         i,
         1
       );
-
     }
-
   }
-
 }
 
 /* =========================================================
@@ -2424,7 +3022,9 @@ function updateParticles() {
 
 function updateCamera() {
 
-  if (!car) return;
+  if (!car) {
+    return;
+  }
 
   const roadX =
     getRoadCurve(5);
@@ -2443,189 +3043,241 @@ function updateCamera() {
       0.016;
 
     targetX +=
-      (Math.random() - 0.5) *
+      (
+        Math.random() -
+        0.5
+      ) *
       0.35;
 
     targetY +=
-      (Math.random() - 0.5) *
+      (
+        Math.random() -
+        0.5
+      ) *
       0.25;
-
   }
 
   camera.position.x +=
     (
       targetX -
       camera.position.x
-    ) * 0.08;
+    ) *
+    0.08;
 
   camera.position.y +=
     (
       targetY -
       camera.position.y
-    ) * 0.08;
+    ) *
+    0.08;
 
   camera.position.z +=
     (
       9 -
       camera.position.z
-    ) * 0.08;
+    ) *
+    0.08;
 
   camera.lookAt(
     targetX,
     1,
     -10
   );
-
 }
 
 /* =========================================================
-   ROAD OBJECT UPDATE
+   INPUT HELPERS
 ========================================================= */
 
-function updateRoadObjects() {
+function stopAllInput() {
 
-  roadObjects.forEach(
-    object => {
+  steerLeft = false;
 
-      updateRoadObjectTransform(
-        object
-      );
+  steerRight = false;
 
+  gasPressed = false;
+
+  brakePressed = false;
+}
+
+/* =========================================================
+   MOBILE BUTTON
+========================================================= */
+
+function bindHoldButton(
+  id,
+  setter
+) {
+
+  const element =
+    document.getElementById(id);
+
+  if (!element) {
+    return;
+  }
+
+  const start =
+    event => {
+
+      event.preventDefault();
+
+      setter(true);
+
+      try {
+        element.setPointerCapture(
+          event.pointerId
+        );
+      } catch (error) {
+        /* ignore */
+      }
+    };
+
+  const stop =
+    event => {
+
+      event.preventDefault();
+
+      setter(false);
+    };
+
+  element.addEventListener(
+    "pointerdown",
+    start,
+    {
+      passive: false
     }
   );
 
+  element.addEventListener(
+    "pointerup",
+    stop,
+    {
+      passive: false
+    }
+  );
+
+  element.addEventListener(
+    "pointercancel",
+    stop,
+    {
+      passive: false
+    }
+  );
+
+  element.addEventListener(
+    "lostpointercapture",
+    stop,
+    {
+      passive: false
+    }
+  );
+
+  element.addEventListener(
+    "contextmenu",
+    event => {
+
+      event.preventDefault();
+    }
+  );
 }
 
 /* =========================================================
-   INPUT
+   CONTROLS
 ========================================================= */
 
 function setupControls() {
 
-  const bindHold =
-    (
-      id,
-      setter
-    ) => {
-
-      const element =
-        document.getElementById(id);
-
-      const start =
-        event => {
-
-          event.preventDefault();
-
-          setter(true);
-
-        };
-
-      const stop =
-        event => {
-
-          event.preventDefault();
-
-          setter(false);
-
-        };
-
-      element.addEventListener(
-        "pointerdown",
-        start
-      );
-
-      element.addEventListener(
-        "pointerup",
-        stop
-      );
-
-      element.addEventListener(
-        "pointercancel",
-        stop
-      );
-
-      element.addEventListener(
-        "pointerleave",
-        stop
-      );
-
-      element.addEventListener(
-        "contextmenu",
-        e => e.preventDefault()
-      );
-
-    };
-
-  bindHold(
+  bindHoldButton(
     "left",
     value => {
+
       steerLeft = value;
     }
   );
 
-  bindHold(
+  bindHoldButton(
     "right",
     value => {
+
       steerRight = value;
     }
   );
 
-  bindHold(
+  bindHoldButton(
     "gas",
     value => {
+
       gasPressed = value;
     }
   );
 
-  bindHold(
+  bindHoldButton(
     "brake",
     value => {
+
       brakePressed = value;
     }
   );
+
+  /* =====================================================
+     KEYBOARD
+  ===================================================== */
 
   window.addEventListener(
     "keydown",
     event => {
 
+      const key =
+        event.key.toLowerCase();
+
       if (
-        event.key ===
-        "ArrowLeft"
+        key === "arrowleft" ||
+        key === "a"
       ) {
 
         steerLeft = true;
-
       }
 
       if (
-        event.key ===
-        "ArrowRight"
+        key === "arrowright" ||
+        key === "d"
       ) {
 
         steerRight = true;
-
       }
 
       if (
-        event.key ===
-        "ArrowUp"
+        key === "arrowup" ||
+        key === "w"
       ) {
 
         gasPressed = true;
-
       }
 
       if (
-        event.key ===
-        "ArrowDown" ||
-        event.key === " " ||
-        event.key.toLowerCase() === "s"
+        key === "arrowdown" ||
+        key === "s" ||
+        key === " "
       ) {
 
         brakePressed = true;
-
       }
 
+      if (
+        [
+          "arrowleft",
+          "arrowright",
+          "arrowup",
+          "arrowdown",
+          " "
+        ].includes(key)
+      ) {
+
+        event.preventDefault();
+      }
+    },
+    {
+      passive: false
     }
   );
 
@@ -2633,47 +3285,71 @@ function setupControls() {
     "keyup",
     event => {
 
+      const key =
+        event.key.toLowerCase();
+
       if (
-        event.key ===
-        "ArrowLeft"
+        key === "arrowleft" ||
+        key === "a"
       ) {
 
         steerLeft = false;
-
       }
 
       if (
-        event.key ===
-        "ArrowRight"
+        key === "arrowright" ||
+        key === "d"
       ) {
 
         steerRight = false;
-
       }
 
       if (
-        event.key ===
-        "ArrowUp"
+        key === "arrowup" ||
+        key === "w"
       ) {
 
         gasPressed = false;
-
       }
 
       if (
-        event.key ===
-        "ArrowDown" ||
-        event.key === " " ||
-        event.key.toLowerCase() === "s"
+        key === "arrowdown" ||
+        key === "s" ||
+        key === " "
       ) {
 
         brakePressed = false;
-
       }
-
+    },
+    {
+      passive: false
     }
   );
 
+  /* =====================================================
+     SAFETY: RELEASE GAS WHEN TAB LOSES FOCUS
+  ===================================================== */
+
+  window.addEventListener(
+    "blur",
+    () => {
+
+      stopAllInput();
+    }
+  );
+
+  document.addEventListener(
+    "visibilitychange",
+    () => {
+
+      if (
+        document.hidden
+      ) {
+
+        stopAllInput();
+      }
+    }
+  );
 }
 
 /* =========================================================
@@ -2682,8 +3358,12 @@ function setupControls() {
 
 function onResize() {
 
-  if (!camera || !renderer)
+  if (
+    !camera ||
+    !renderer
+  ) {
     return;
+  }
 
   camera.aspect =
     window.innerWidth /
@@ -2695,7 +3375,6 @@ function onResize() {
     window.innerWidth,
     window.innerHeight
   );
-
 }
 
 /* =========================================================
@@ -2710,13 +3389,13 @@ function animate() {
 
   updatePlayer();
 
+  updateWorldMovement();
+
   updateEnemies();
 
   updateLevel();
 
   updateParticles();
-
-  updateRoadObjects();
 
   updateCamera();
 
@@ -2726,11 +3405,10 @@ function animate() {
     scene,
     camera
   );
-
 }
 
 /* =========================================================
-   START
+   START APPLICATION
 ========================================================= */
 
 setupControls();
