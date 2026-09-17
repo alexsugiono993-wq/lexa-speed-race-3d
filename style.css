@@ -1,522 +1,589 @@
-
 * {
-    box-sizing: border-box;
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
 }
 
 html,
 body {
-    width: 100%;
-    height: 100%;
-    margin: 0;
-    padding: 0;
-    overflow: hidden;
-    font-family: Arial, sans-serif;
-    background: #000;
-    touch-action: none;
-    overscroll-behavior: none;
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  font-family: Arial, Helvetica, sans-serif;
+  background: #050505;
+  color: white;
+  user-select: none;
 }
 
 body {
-    position: fixed;
+  position: relative;
 }
-
-/* ==========================================
-   GAME
-   ========================================== */
-
-#game {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100vw;
-    height: 100vh;
-    overflow: hidden;
-    background: #000;
-}
-
-/* ==========================================
-   HUD
-   ========================================== */
-
-#hud {
-    position: absolute;
-    top: calc(10px + env(safe-area-inset-top));
-    left: 10px;
-    right: 10px;
-
-    z-index: 10;
-
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 8px;
-
-    padding: 10px 15px;
-
-    color: white;
-    background: rgba(0, 0, 0, 0.55);
-
-    border: 1px solid rgba(255, 255, 255, 0.15);
-    border-radius: 10px;
-
-    font-weight: bold;
-    font-size: 14px;
-
-    pointer-events: none;
-}
-
-/* ==========================================
-   LOADING
-   ========================================== */
-
-#loading {
-    position: absolute;
-    inset: 0;
-
-    display: flex;
-    justify-content: center;
-    align-items: center;
-
-    color: white;
-    background: #111;
-
-    z-index: 20;
-
-    font-size: 25px;
-    font-weight: bold;
-}
-
-/* ==========================================
-   KONTROL
-   ========================================== */
-
-#controls {
-    position: fixed;
-
-    left: 0;
-    right: 0;
-    bottom: 0;
-
-    width: 100%;
-    height: 145px;
-
-    z-index: 100;
-
-    display: flex;
-    align-items: flex-end;
-    justify-content: space-between;
-
-    padding-left: calc(12px + env(safe-area-inset-left));
-    padding-right: calc(12px + env(safe-area-inset-right));
-    padding-bottom: calc(12px + env(safe-area-inset-bottom));
-
-    pointer-events: none;
-}
-
-/* ==========================================
-   SEMUA TOMBOL
-   ========================================== */
-
-#controls button {
-    pointer-events: auto;
-
-    flex-shrink: 0;
-
-    width: 68px;
-    height: 68px;
-
-    margin: 0;
-    padding: 0;
-
-    border: 3px solid rgba(255, 255, 255, 0.85);
-    border-radius: 50%;
-
-    background: rgba(0, 0, 0, 0.60);
-
-    color: white;
-
-    font-size: 28px;
-    line-height: 1;
-
-    display: flex;
-    align-items: center;
-    justify-content: center;
-
-    text-align: center;
-
-    cursor: pointer;
-
-    user-select: none;
-    -webkit-user-select: none;
-
-    touch-action: none;
-    -webkit-tap-highlight-color: transparent;
-
-    box-shadow:
-        0 5px 15px rgba(0, 0, 0, 0.55),
-        inset 0 0 10px rgba(255, 255, 255, 0.08);
-
-    transition:
-        transform 0.08s ease,
-        background 0.08s ease,
-        box-shadow 0.08s ease;
-}
-
-/* ==========================================
-   TOMBOL ARAH KIRI
-   ========================================== */
-
-#left {
-    margin-right: 10px;
-}
-
-/* ==========================================
-   TOMBOL REM
-   ========================================== */
-
-#brake {
-    margin-left: auto;
-
-    background: rgba(180, 0, 0, 0.78) !important;
-
-    border-color: rgba(255, 120, 120, 0.9);
-
-    box-shadow:
-        0 5px 15px rgba(0, 0, 0, 0.55),
-        0 0 12px rgba(255, 0, 0, 0.20);
-}
-
-/* ==========================================
-   TOMBOL GAS
-   ========================================== */
-
-#gas {
-    margin-left: 10px;
-
-    background: rgba(0, 145, 55, 0.78);
-
-    border-color: rgba(120, 255, 160, 0.9);
-
-    box-shadow:
-        0 5px 15px rgba(0, 0, 0, 0.55),
-        0 0 12px rgba(0, 255, 100, 0.20);
-}
-
-/* ==========================================
-   TOMBOL KANAN
-   ========================================== */
-
-#right {
-    margin-left: 10px;
-}
-
-/* ==========================================
-   EFEK SAAT DITEKAN
-   ========================================== */
-
-#controls button:active {
-    transform: scale(0.88);
-
-    background: rgba(255, 255, 255, 0.30);
-
-    box-shadow:
-        0 2px 7px rgba(0, 0, 0, 0.5);
-
-    transition: none;
-}
-
-#brake:active {
-    background: rgba(255, 40, 40, 0.92) !important;
-}
-
-#gas:active {
-    background: rgba(40, 220, 90, 0.92) !important;
-}
-
-/* ==========================================
-   CANVAS
-   ========================================== */
 
 canvas {
-    display: block;
-    width: 100%;
-    height: 100%;
-    touch-action: none;
+  display: block;
+  width: 100%;
+  height: 100%;
 }
 
-/* ==========================================
+/* =========================
+   UTILITY
+========================= */
+
+.hidden {
+  display: none !important;
+}
+
+/* =========================
+   MAIN MENU
+========================= */
+
+.menu-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+
+  display: flex;
+  justify-content: center;
+  align-items: center;
+
+  background:
+    radial-gradient(circle at center, rgba(0, 220, 255, 0.15), transparent 35%),
+    linear-gradient(
+      135deg,
+      rgba(2, 15, 30, 0.98),
+      rgba(5, 5, 10, 0.99)
+    );
+}
+
+.menu-box {
+  width: min(90vw, 430px);
+  padding: 35px 25px;
+
+  text-align: center;
+
+  background: rgba(10, 18, 30, 0.92);
+  border: 2px solid rgba(0, 229, 255, 0.55);
+  border-radius: 24px;
+
+  box-shadow:
+    0 0 35px rgba(0, 229, 255, 0.25),
+    inset 0 0 25px rgba(0, 229, 255, 0.05);
+
+  backdrop-filter: blur(10px);
+}
+
+.game-logo {
+  font-size: clamp(42px, 12vw, 70px);
+  font-weight: 900;
+  letter-spacing: 8px;
+  color: #ff3030;
+
+  text-shadow:
+    0 0 10px rgba(255, 30, 30, 0.8),
+    0 0 30px rgba(255, 30, 30, 0.35);
+
+  transform: skew(-8deg);
+}
+
+.game-title {
+  margin-top: 5px;
+
+  font-size: clamp(25px, 7vw, 38px);
+  font-weight: 900;
+  letter-spacing: 3px;
+
+  color: white;
+
+  text-shadow:
+    0 0 8px rgba(255, 255, 255, 0.5);
+}
+
+.game-subtitle {
+  margin-top: 8px;
+  margin-bottom: 30px;
+
+  font-size: 12px;
+  letter-spacing: 6px;
+
+  color: #00e5ff;
+}
+
+.menu-button {
+  width: 100%;
+  min-height: 54px;
+
+  margin-top: 12px;
+
+  border: 1px solid rgba(0, 229, 255, 0.5);
+  border-radius: 14px;
+
+  background: rgba(0, 80, 100, 0.3);
+
+  color: white;
+
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: 1px;
+
+  cursor: pointer;
+
+  transition:
+    transform 0.12s ease,
+    background 0.12s ease,
+    box-shadow 0.12s ease;
+}
+
+.menu-button:active {
+  transform: scale(0.96);
+}
+
+.menu-button:hover {
+  background: rgba(0, 150, 180, 0.35);
+  box-shadow: 0 0 18px rgba(0, 229, 255, 0.2);
+}
+
+.menu-button.primary {
+  background:
+    linear-gradient(
+      135deg,
+      #e53935,
+      #ff7043
+    );
+
+  border-color: #ff8a65;
+
+  box-shadow:
+    0 0 18px rgba(255, 60, 40, 0.35);
+}
+
+.menu-button.primary:hover {
+  background:
+    linear-gradient(
+      135deg,
+      #ff5252,
+      #ff8a65
+    );
+}
+
+.menu-info {
+  margin-top: 25px;
+
+  color: #9aa7b2;
+  font-size: 13px;
+}
+
+/* =========================
+   LEVEL MENU
+========================= */
+
+.level-box {
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.level-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+
+  margin: 20px 0;
+}
+
+.level-card {
+  position: relative;
+
+  display: flex;
+  align-items: center;
+
+  width: 100%;
+  min-height: 75px;
+
+  padding: 12px 15px;
+
+  border-radius: 15px;
+
+  border: 1px solid rgba(255, 255, 255, 0.15);
+
+  background:
+    linear-gradient(
+      90deg,
+      rgba(255, 255, 255, 0.08),
+      rgba(255, 255, 255, 0.03)
+    );
+
+  color: white;
+
+  text-align: left;
+
+  cursor: pointer;
+
+  transition:
+    transform 0.12s ease,
+    background 0.12s ease;
+}
+
+.level-card:not(.locked):active {
+  transform: scale(0.97);
+}
+
+.level-card:not(.locked):hover {
+  background: rgba(0, 229, 255, 0.12);
+}
+
+.level-card.locked {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.level-number {
+  width: 55px;
+
+  font-size: 30px;
+  font-weight: 900;
+
+  color: #00e5ff;
+
+  text-align: center;
+}
+
+.level-card.locked .level-number {
+  color: #777;
+}
+
+.level-info {
+  flex: 1;
+
+  padding-left: 10px;
+}
+
+.level-name {
+  font-size: 17px;
+  font-weight: 900;
+}
+
+.level-description {
+  margin-top: 4px;
+
+  font-size: 11px;
+  color: #9da8b0;
+}
+
+.level-status {
+  font-size: 22px;
+}
+
+/* =========================
+   HUD
+========================= */
+
+#hud {
+  position: fixed;
+  z-index: 20;
+
+  top: 10px;
+  left: 50%;
+
+  transform: translateX(-50%);
+
+  display: flex;
+  gap: 8px;
+
+  width: min(96vw, 650px);
+
+  justify-content: center;
+}
+
+.hud-item {
+  min-width: 70px;
+  padding: 6px 8px;
+
+  border-radius: 10px;
+
+  background: rgba(0, 0, 0, 0.48);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+
+  text-align: center;
+
+  backdrop-filter: blur(5px);
+}
+
+.hud-item span {
+  display: block;
+
+  font-size: 8px;
+  color: #aeb8c0;
+  letter-spacing: 1px;
+}
+
+.hud-item strong {
+  display: block;
+
+  margin-top: 1px;
+
+  font-size: 18px;
+  line-height: 20px;
+}
+
+.hud-item small {
+  font-size: 7px;
+  color: #7f8b94;
+}
+
+/* =========================
+   LOADING
+========================= */
+
+#loading {
+  position: fixed;
+  z-index: 500;
+
+  inset: 0;
+
+  display: flex;
+  justify-content: center;
+  align-items: center;
+
+  background: #050505;
+
+  font-size: 22px;
+  font-weight: 900;
+  letter-spacing: 3px;
+}
+
+/* =========================
+   LEVEL NOTIFICATION
+========================= */
+
+.level-notification {
+  position: fixed;
+  z-index: 100;
+
+  top: 50%;
+  left: 50%;
+
+  transform: translate(-50%, -50%);
+
+  padding: 25px 45px;
+
+  text-align: center;
+
+  background: rgba(0, 0, 0, 0.72);
+
+  border: 2px solid #00e5ff;
+  border-radius: 18px;
+
+  box-shadow:
+    0 0 30px rgba(0, 229, 255, 0.4);
+}
+
+.level-notification #levelNumber {
+  font-size: 34px;
+  font-weight: 900;
+  color: #00e5ff;
+}
+
+.level-notification #levelName {
+  margin-top: 8px;
+
+  font-size: 18px;
+  font-weight: 700;
+
+  letter-spacing: 2px;
+}
+
+/* =========================
    GAME OVER
-   ========================================== */
+========================= */
 
-#gameOverScreen {
-    position: absolute;
-    inset: 0;
+.game-over {
+  position: fixed;
+  z-index: 200;
 
-    z-index: 50;
+  inset: 0;
 
-    display: flex;
-    justify-content: center;
-    align-items: center;
+  display: flex;
+  justify-content: center;
+  align-items: center;
 
-    background: rgba(0, 0, 0, 0.72);
-
-    padding: 20px;
+  background: rgba(0, 0, 0, 0.58);
 }
 
 .game-over-box {
-    width: min(90%, 400px);
+  width: min(90vw, 390px);
 
-    padding: 30px;
+  padding: 25px;
 
-    text-align: center;
+  border-radius: 22px;
 
-    background: rgba(25, 25, 25, 0.95);
+  background: rgba(12, 15, 20, 0.95);
 
-    border: 2px solid white;
-    border-radius: 20px;
+  border: 2px solid rgba(255, 60, 60, 0.6);
 
-    box-shadow:
-        0 10px 40px rgba(0, 0, 0, 0.6);
+  box-shadow:
+    0 0 35px rgba(255, 40, 40, 0.25);
+
+  text-align: center;
 }
 
-.game-over-title {
-    color: #ff3b3b;
-    font-size: 42px;
-    font-weight: bold;
-    margin-bottom: 15px;
+.crash-title {
+  margin-bottom: 22px;
+
+  font-size: 36px;
+  font-weight: 900;
+
+  color: #ff5252;
 }
 
-.game-over-text {
-    color: white;
-    font-size: 18px;
-    margin-bottom: 12px;
+.result-row {
+  display: flex;
+  justify-content: space-between;
+
+  padding: 10px 5px;
+
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+
+  color: #aab4bc;
 }
 
-.game-over-distance {
-    color: #ffd166;
-    font-size: 18px;
-    font-weight: bold;
-    margin-bottom: 10px;
+.result-row strong {
+  color: white;
 }
 
-.game-over-score {
-    color: white;
-    font-size: 20px;
-    font-weight: bold;
-    margin-bottom: 10px;
+/* =========================
+   MOBILE CONTROLS
+========================= */
+
+#mobileControls {
+  position: fixed;
+  z-index: 50;
+
+  inset: auto 0 15px 0;
+
+  height: 130px;
+
+  pointer-events: none;
 }
 
-.game-over-best {
-    color: #ffd700;
-    font-size: 20px;
-    font-weight: bold;
-    margin-bottom: 10px;
+.control-button {
+  position: absolute;
+
+  width: 74px;
+  height: 74px;
+
+  border-radius: 50%;
+
+  border: 2px solid rgba(255, 255, 255, 0.25);
+
+  color: white;
+
+  font-weight: 900;
+  font-size: 22px;
+
+  background: rgba(0, 0, 0, 0.48);
+
+  backdrop-filter: blur(5px);
+
+  pointer-events: auto;
+
+  touch-action: none;
+
+  user-select: none;
 }
 
-.game-over-level {
-    color: #4dabf7;
-    font-size: 20px;
-    font-weight: bold;
-    margin-bottom: 25px;
+.control-button:active {
+  transform: scale(0.92);
 }
 
-#restartButton {
-    width: 200px;
-
-    padding: 14px 20px;
-
-    border: none;
-    border-radius: 12px;
-
-    background: #e63946;
-
-    color: white;
-
-    font-size: 18px;
-    font-weight: bold;
-
-    cursor: pointer;
+.left-button {
+  left: 20px;
+  bottom: 15px;
 }
 
-#restartButton:hover {
-    transform: scale(1.05);
+.right-button {
+  left: 105px;
+  bottom: 15px;
 }
 
-#restartButton:active {
-    transform: scale(0.95);
+.gas-button {
+  right: 20px;
+  bottom: 15px;
+
+  width: 88px;
+  height: 88px;
+
+  background: rgba(0, 130, 70, 0.55);
+  border-color: rgba(0, 255, 150, 0.45);
 }
 
-/* ==========================================
-   TABLET / HP
-   ========================================== */
+.brake-button {
+  right: 118px;
+  bottom: 15px;
 
-@media (max-width: 900px) {
-    #hud {
-        flex-wrap: wrap;
-        justify-content: center;
-        font-size: 12px;
-        padding: 8px;
-    }
+  width: 70px;
+  height: 70px;
+
+  font-size: 12px;
+
+  background: rgba(150, 30, 30, 0.55);
+  border-color: rgba(255, 80, 80, 0.45);
 }
 
-/* ==========================================
-   HP PORTRAIT
-   ========================================== */
+/* =========================
+   DESKTOP
+========================= */
 
-@media (max-width: 600px) {
-    #hud {
-        top: calc(6px + env(safe-area-inset-top));
+@media (min-width: 900px) {
 
-        left: 6px;
-        right: 6px;
+  #mobileControls {
+    opacity: 0.7;
+  }
 
-        font-size: 10px;
-        gap: 5px;
-        padding: 7px;
-    }
-
-    #controls {
-        height: 125px;
-
-        padding-left:
-            calc(8px + env(safe-area-inset-left));
-
-        padding-right:
-            calc(8px + env(safe-area-inset-right));
-
-        padding-bottom:
-            calc(8px + env(safe-area-inset-bottom));
-    }
-
-    #controls button {
-        width: 60px;
-        height: 60px;
-
-        font-size: 24px;
-
-        border-width: 2px;
-    }
-
-    #left {
-        margin-right: 7px;
-    }
-
-    #brake {
-        margin-left: auto;
-    }
-
-    #gas {
-        margin-left: 7px;
-    }
-
-    #right {
-        margin-left: 7px;
-    }
-
-    .game-over-title {
-        font-size: 34px;
-    }
-
-    .game-over-box {
-        padding: 25px;
-    }
+  .control-button {
+    width: 64px;
+    height: 64px;
+  }
 }
 
-/* ==========================================
-   HP SANGAT KECIL
-   ========================================== */
+/* =========================
+   SMALL MOBILE
+========================= */
 
-@media (max-width: 380px) {
-    #controls {
-        height: 112px;
+@media (max-width: 420px) {
 
-        padding-left:
-            calc(6px + env(safe-area-inset-left));
+  #hud {
+    gap: 3px;
+    width: 99vw;
+  }
 
-        padding-right:
-            calc(6px + env(safe-area-inset-right));
+  .hud-item {
+    min-width: 55px;
+    padding: 5px 4px;
+  }
 
-        padding-bottom:
-            calc(6px + env(safe-area-inset-bottom));
-    }
+  .hud-item strong {
+    font-size: 15px;
+  }
 
-    #controls button {
-        width: 54px;
-        height: 54px;
-        font-size: 21px;
-    }
+  .hud-item span {
+    font-size: 7px;
+  }
 
-    #left {
-        margin-right: 5px;
-    }
+  .control-button {
+    width: 65px;
+    height: 65px;
+  }
 
-    #gas {
-        margin-left: 5px;
-    }
+  .right-button {
+    left: 90px;
+  }
 
-    #right {
-        margin-left: 5px;
-    }
+  .brake-button {
+    right: 100px;
+  }
+
+  .gas-button {
+    width: 78px;
+    height: 78px;
+  }
 }
-
-/* ==========================================
-   LANDSCAPE HP
-   ========================================== */
-
-@media (max-height: 500px) and (orientation: landscape) {
-    #hud {
-        top: calc(5px + env(safe-area-inset-top));
-
-        left: 6px;
-        right: 6px;
-
-        padding: 5px 8px;
-        font-size: 9px;
-    }
-
-    #controls {
-        height: 90px;
-
-        padding-left:
-            calc(10px + env(safe-area-inset-left));
-
-        padding-right:
-            calc(10px + env(safe-area-inset-right));
-
-        padding-bottom:
-            calc(6px + env(safe-area-inset-bottom));
-    }
-
-    #controls button {
-        width: 52px;
-        height: 52px;
-
-        font-size: 21px;
-
-        border-width: 2px;
-    }
-
-    #left {
-        margin-right: 5px;
-    }
-
-    #gas {
-        margin-left: 5px;
-    }
-
-    #right {
-        margin-left: 5px;
-    }
-
-    .game-over-box {
-        max-height: 90vh;
-        overflow-y: auto;
-        padding: 18px;
-    }
-
-    .game-over-title {
-        font-size: 28px;
-        margin-bottom: 8px;
-    }
-}
-

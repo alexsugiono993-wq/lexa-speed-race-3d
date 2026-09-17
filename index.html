@@ -1,68 +1,155 @@
-```html
 <!DOCTYPE html>
 <html lang="id">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-    <title>Lexa Speed Race 3D</title>
-
-    <link rel="stylesheet" href="style.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Lexa Speed Race 3D</title>
+  <link rel="stylesheet" href="./style.css">
 </head>
 
 <body>
 
-    <div id="game">
+  <!-- MAIN MENU -->
+  <div id="mainMenu" class="menu-screen">
+    <div class="menu-box">
+      <div class="game-logo">LEXA</div>
+      <div class="game-title">SPEED RACE 3D</div>
+      <div class="game-subtitle">HIGHWAY RACING</div>
 
-        <div id="hud">
+      <button id="playButton" class="menu-button primary">
+        ▶ MULAI
+      </button>
 
-            <div>🏎️ LEXA SPEED RACE 3D</div>
+      <button id="levelButton" class="menu-button">
+        🗺️ PILIH LEVEL
+      </button>
 
-            <div>
-                🚀 <span id="speed">0</span> KM/H
-            </div>
+      <div class="menu-info">
+        Level terbuka: <span id="menuUnlockedLevel">1</span>/5
+      </div>
+    </div>
+  </div>
 
-            <div>
-                📏 <span id="distance">0</span> M
-            </div>
+  <!-- LEVEL SELECT -->
+  <div id="levelMenu" class="menu-screen hidden">
+    <div class="menu-box level-box">
 
-            <div>
-                ⭐ SCORE: <span id="score">0</span>
-            </div>
+      <div class="game-title">PILIH LEVEL</div>
 
-            <div>
-                🏆 LEVEL: <span id="level">1</span>
-            </div>
+      <div id="levelList" class="level-list"></div>
 
-            <div>
-                🥇 BEST: <span id="bestScore">0</span>
-            </div>
+      <button id="backMenuButton" class="menu-button">
+        ◀ KEMBALI
+      </button>
+    </div>
+  </div>
 
-        </div>
+  <!-- GAME -->
+  <div id="game" class="hidden">
 
+    <div id="loading">LOADING...</div>
 
-        <div id="loading">
-            MEMUAT GAME...
-        </div>
+    <!-- HUD -->
+    <div id="hud">
 
+      <div class="hud-item">
+        <span>SPD</span>
+        <strong id="speed">0</strong>
+        <small>KM/H</small>
+      </div>
 
-        <div id="controls">
+      <div class="hud-item">
+        <span>DIST</span>
+        <strong id="distance">0</strong>
+        <small>M</small>
+      </div>
 
-            <button id="left">⬅️</button>
+      <div class="hud-item">
+        <span>SCORE</span>
+        <strong id="score">0</strong>
+      </div>
 
-            <button id="brake">🛑</button>
+      <div class="hud-item">
+        <span>LEVEL</span>
+        <strong id="level">1</strong>
+      </div>
 
-            <button id="gas">🚀</button>
-
-            <button id="right">➡️</button>
-
-        </div>
+      <div class="hud-item">
+        <span>BEST</span>
+        <strong id="bestScore">0</strong>
+      </div>
 
     </div>
 
+    <!-- LEVEL NOTIFICATION -->
+    <div id="levelNotification" class="level-notification hidden">
+      <div id="levelNumber">LEVEL 1</div>
+      <div id="levelName">GREEN VALLEY</div>
+    </div>
 
-    <script type="module" src="game.js"></script>
+    <!-- GAME OVER -->
+    <div id="gameOver" class="game-over hidden">
+
+      <div class="game-over-box">
+
+        <div class="crash-title">💥 CRASH!</div>
+
+        <div class="result-row">
+          <span>Distance</span>
+          <strong id="finalDistance">0 m</strong>
+        </div>
+
+        <div class="result-row">
+          <span>Score</span>
+          <strong id="finalScore">0</strong>
+        </div>
+
+        <div class="result-row">
+          <span>Best Score</span>
+          <strong id="finalBestScore">0</strong>
+        </div>
+
+        <div class="result-row">
+          <span>Level</span>
+          <strong id="finalLevel">1</strong>
+        </div>
+
+        <button id="restartButton" class="menu-button primary">
+          🔄 MAIN LAGI
+        </button>
+
+        <button id="menuButton" class="menu-button">
+          🏠 MENU UTAMA
+        </button>
+
+      </div>
+
+    </div>
+
+    <!-- MOBILE CONTROLS -->
+    <div id="mobileControls">
+
+      <button id="left" class="control-button left-button">
+        ◀
+      </button>
+
+      <button id="right" class="control-button right-button">
+        ▶
+      </button>
+
+      <button id="brake" class="control-button brake-button">
+        BRAKE
+      </button>
+
+      <button id="gas" class="control-button gas-button">
+        GAS
+      </button>
+
+    </div>
+
+  </div>
+
+  <script type="module" src="./game.js"></script>
 
 </body>
 </html>
-```
