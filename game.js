@@ -2,20 +2,21 @@ import * as THREE from './three.module.js';
 
 /* =========================================================
    LEXA SPEED RACE 3D
-   STABLE VERSION
-   - Main Menu
-   - Level Select
-   - 5 Maps
-   - Working Gas / Brake
-   - Working Steering
-   - Moving Road
-   - Moving Environment
-   - Moving Enemy Cars
+   SMOOTH HIGHWAY EDITION
+   ---------------------------------------------------------
+   - Smooth continuous highway curve
+   - Smooth road markings
+   - Smooth shoulders
+   - Competitive AI traffic
+   - AI lane changing
+   - 5 maps
+   - Main menu
+   - Level select
+   - Score / Best Score
    - Collision
-   - Score
-   - Best Score
-   - Level Unlock
+   - Mobile controls
 ========================================================= */
+
 
 /* =========================================================
    THREE CORE
@@ -31,6 +32,7 @@ let initialized = false;
 let enemyCars = [];
 let roadObjects = [];
 let collisionParticles = [];
+
 
 /* =========================================================
    GAME STATE
@@ -48,7 +50,11 @@ let unlockedLevel =
   Number(localStorage.getItem("lexaUnlockedLevel")) || 1;
 
 unlockedLevel =
-  THREE.MathUtils.clamp(unlockedLevel, 1, 5);
+  THREE.MathUtils.clamp(
+    unlockedLevel,
+    1,
+    5
+  );
 
 let selectedStartLevel = 1;
 
@@ -57,46 +63,86 @@ let gameOverState = false;
 
 let currentMap = 1;
 
+
 /* =========================================================
-   GAME PHYSICS
+   PLAYER PHYSICS
 ========================================================= */
 
-const MAX_SPEED = 12;
+const MAX_SPEED = 13;
 
 const ACCELERATION = 0.22;
-const NATURAL_DECELERATION = 0.075;
-const BRAKE_POWER = 0.30;
+const NATURAL_DECELERATION = 0.07;
+const BRAKE_POWER = 0.32;
 
 const STEER_ACCELERATION = 0.045;
 const STEER_MAX_SPEED = 0.30;
 const STEER_DECELERATION = 0.065;
 
-/*
-  Faktor ini menentukan seberapa cepat dunia
-  bergerak ke arah pemain.
-*/
-const WORLD_SPEED_MULTIPLIER = 0.18;
+let steeringVelocity = 0;
+let playerRoadOffset = 0;
 
-/*
-  Kecepatan dasar mobil musuh.
-*/
-const ENEMY_SPEED_MIN = 0.08;
-const ENEMY_SPEED_MAX = 0.22;
 
 /* =========================================================
-   ROAD
+   WORLD
 ========================================================= */
 
 const WORLD_LENGTH = 720;
 
 const ROAD_WIDTH = 12;
-const ROAD_SEGMENT_LENGTH = 16;
+
+const ROAD_SEGMENT_LENGTH = 12;
 
 const ROAD_LIMIT =
   ROAD_WIDTH / 2 - 1.25;
 
-let steeringVelocity = 0;
-let playerRoadOffset = 0;
+
+/* =========================================================
+   LANES
+========================================================= */
+
+const LANES = [
+  -3.2,
+  -1.1,
+  1.1,
+  3.2
+];
+
+
+/* =========================================================
+   WORLD SPEED
+========================================================= */
+
+const WORLD_SPEED_MULTIPLIER = 0.19;
+
+
+/* =========================================================
+   ENEMY DIFFICULTY
+========================================================= */
+
+const ENEMY_BASE_SPEED = [
+  0.075,
+  0.085,
+  0.095,
+  0.105,
+  0.115
+];
+
+const ENEMY_MAX_SPEED = [
+  0.17,
+  0.20,
+  0.23,
+  0.27,
+  0.31
+];
+
+const ENEMY_COUNT_BY_LEVEL = [
+  4,
+  4,
+  5,
+  5,
+  6
+];
+
 
 /* =========================================================
    INPUT
@@ -104,8 +150,10 @@ let playerRoadOffset = 0;
 
 let steerLeft = false;
 let steerRight = false;
+
 let gasPressed = false;
 let brakePressed = false;
+
 
 /* =========================================================
    CAMERA
@@ -115,11 +163,6 @@ let cameraShakeTime = 0;
 
 const CAMERA_SHAKE_DURATION = 0.5;
 
-const cameraBasePosition = {
-  x: 0,
-  y: 5,
-  z: 9
-};
 
 /* =========================================================
    ENEMY COLORS
@@ -134,13 +177,13 @@ const enemyColors = [
   0xc62828
 ];
 
-const jumlahEnemy = 5;
 
 /* =========================================================
    MAPS
 ========================================================= */
 
 const MAPS = {
+
   1: {
     name: "GREEN VALLEY",
     sky: 0x87ceeb,
@@ -148,8 +191,10 @@ const MAPS = {
     shoulder: 0x6fa84a,
     road: 0x292929,
     edge: 0xffd600,
+
     curveStrength: 1.0,
-    environment: "green"
+
+    curveFrequency: 1.0
   },
 
   2: {
@@ -159,8 +204,10 @@ const MAPS = {
     shoulder: 0x4f7f4a,
     road: 0x252525,
     edge: 0xffc107,
-    curveStrength: 1.35,
-    environment: "forest"
+
+    curveStrength: 1.25,
+
+    curveFrequency: 0.95
   },
 
   3: {
@@ -170,8 +217,10 @@ const MAPS = {
     shoulder: 0x858585,
     road: 0x303030,
     edge: 0xffffff,
-    curveStrength: 1.75,
-    environment: "mountain"
+
+    curveStrength: 1.55,
+
+    curveFrequency: 0.85
   },
 
   4: {
@@ -181,8 +230,10 @@ const MAPS = {
     shoulder: 0xb47c42,
     road: 0x343434,
     edge: 0xffe082,
-    curveStrength: 1.15,
-    environment: "desert"
+
+    curveStrength: 1.1,
+
+    curveFrequency: 0.9
   },
 
   5: {
@@ -192,10 +243,13 @@ const MAPS = {
     shoulder: 0x252a2f,
     road: 0x191919,
     edge: 0x00e5ff,
-    curveStrength: 1.45,
-    environment: "night"
+
+    curveStrength: 1.35,
+
+    curveFrequency: 0.9
   }
 };
+
 
 /* =========================================================
    DOM
@@ -246,6 +300,165 @@ const levelNumber =
 const levelName =
   document.getElementById("levelName");
 
+
+/* =========================================================
+   SMOOTH HIGHWAY SYSTEM
+========================================================= */
+
+/*
+   Penting:
+
+   Sistem lama menggunakan beberapa gelombang sinus pendek
+   yang membuat arah jalan berubah terlalu cepat.
+
+   Sekarang kita menggunakan kombinasi kurva panjang
+   dengan easing sehingga perubahan arah lebih lembut.
+*/
+
+
+function smoothWave(
+  value
+) {
+
+  return (
+    Math.sin(value) *
+    0.5 +
+    Math.sin(value * 0.47 + 1.7) *
+    0.30 +
+    Math.sin(value * 0.23 + 3.1) *
+    0.20
+  );
+}
+
+
+function getRoadCurve(
+  z
+) {
+
+  const map =
+    MAPS[currentMap];
+
+  const depth =
+    Math.abs(z);
+
+  const normalized =
+    depth /
+    WORLD_LENGTH;
+
+  /*
+     Kurva utama sangat panjang.
+     Tidak ada perubahan arah tajam.
+  */
+
+  const longWave =
+    Math.sin(
+      normalized *
+      Math.PI *
+      2.2 +
+      0.7
+    ) *
+    3.8;
+
+  const mediumWave =
+    Math.sin(
+      normalized *
+      Math.PI *
+      4.0 +
+      2.0
+    ) *
+    1.45;
+
+  const gentleWave =
+    Math.sin(
+      normalized *
+      Math.PI *
+      7.0 +
+      1.0
+    ) *
+    0.45;
+
+  /*
+     Semakin jauh, kurva tetap halus.
+  */
+
+  return (
+    (
+      longWave +
+      mediumWave +
+      gentleWave
+    ) *
+    map.curveStrength
+  );
+}
+
+
+/* =========================================================
+   ROAD SLOPE / DIRECTION
+========================================================= */
+
+function getRoadDirection(
+  z
+) {
+
+  /*
+     Gunakan beberapa sample dekat.
+     Ini membuat arah jalan dihitung dari kurva,
+     bukan dari patahan antarsegmen.
+  */
+
+  const sample =
+    0.5;
+
+  const x1 =
+    getRoadCurve(
+      z - sample
+    );
+
+  const x2 =
+    getRoadCurve(
+      z + sample
+    );
+
+  return Math.atan2(
+    x1 - x2,
+    sample * 2
+  );
+}
+
+
+/* =========================================================
+   ROAD HEIGHT
+========================================================= */
+
+function getRoadHeight(
+  z
+) {
+
+  /*
+     Sedikit undakan alami untuk membuat jalan
+     tidak terasa seperti papan datar.
+
+     Amplitudo sengaja sangat kecil supaya nyaman.
+  */
+
+  const depth =
+    Math.abs(z);
+
+  const normalized =
+    depth /
+    WORLD_LENGTH;
+
+  return (
+    Math.sin(
+      normalized *
+      Math.PI *
+      2.5
+    ) *
+    0.10
+  );
+}
+
+
 /* =========================================================
    MENU
 ========================================================= */
@@ -266,7 +479,10 @@ function updateMenu() {
       5
     );
 
-  if (menuUnlockedLevel) {
+  if (
+    menuUnlockedLevel
+  ) {
+
     menuUnlockedLevel.textContent =
       unlockedLevel;
   }
@@ -274,35 +490,56 @@ function updateMenu() {
   renderLevelList();
 }
 
+
 /* =========================================================
-   LEVEL LIST
+   LEVEL SELECT
 ========================================================= */
 
 function renderLevelList() {
 
-  if (!levelList) return;
+  if (
+    !levelList
+  ) {
+
+    return;
+  }
 
   levelList.innerHTML = "";
 
   const descriptions = {
+
     1: "Green Valley",
+
     2: "Forest Road",
+
     3: "Mountain Road",
+
     4: "Desert Highway",
+
     5: "Night City"
   };
 
-  for (let i = 1; i <= 5; i++) {
+  for (
+    let i = 1;
+    i <= 5;
+    i++
+  ) {
 
     const unlocked =
       i <= unlockedLevel;
 
     const card =
-      document.createElement("button");
+      document.createElement(
+        "button"
+      );
 
     card.className =
       "level-card" +
-      (unlocked ? "" : " locked");
+      (
+        unlocked
+          ? ""
+          : " locked"
+      );
 
     card.innerHTML = `
       <div class="level-number">
@@ -331,22 +568,28 @@ function renderLevelList() {
       </div>
     `;
 
-    if (unlocked) {
+    if (
+      unlocked
+    ) {
 
       card.addEventListener(
         "click",
         () => {
 
-          selectedStartLevel = i;
+          selectedStartLevel =
+            i;
 
           startGame(i);
         }
       );
     }
 
-    levelList.appendChild(card);
+    levelList.appendChild(
+      card
+    );
   }
 }
+
 
 /* =========================================================
    SHOW MAIN MENU
@@ -383,8 +626,9 @@ function showMainMenu() {
   updateMenu();
 }
 
+
 /* =========================================================
-   SHOW LEVEL MENU
+   LEVEL MENU
 ========================================================= */
 
 function showLevelMenu() {
@@ -400,6 +644,7 @@ function showLevelMenu() {
   updateMenu();
 }
 
+
 /* =========================================================
    MENU EVENTS
 ========================================================= */
@@ -414,6 +659,7 @@ playButton.addEventListener(
   }
 );
 
+
 levelButton.addEventListener(
   "click",
   () => {
@@ -421,6 +667,7 @@ levelButton.addEventListener(
     showLevelMenu();
   }
 );
+
 
 backMenuButton.addEventListener(
   "click",
@@ -430,6 +677,7 @@ backMenuButton.addEventListener(
   }
 );
 
+
 menuButton.addEventListener(
   "click",
   () => {
@@ -437,6 +685,7 @@ menuButton.addEventListener(
     showMainMenu();
   }
 );
+
 
 restartButton.addEventListener(
   "click",
@@ -448,13 +697,19 @@ restartButton.addEventListener(
   }
 );
 
+
 /* =========================================================
-   THREE INIT
+   THREE INITIALIZATION
 ========================================================= */
 
 function initThree() {
 
-  if (initialized) return;
+  if (
+    initialized
+  ) {
+
+    return;
+  }
 
   initialized = true;
 
@@ -471,9 +726,9 @@ function initThree() {
     );
 
   camera.position.set(
-    cameraBasePosition.x,
-    cameraBasePosition.y,
-    cameraBasePosition.z
+    0,
+    5,
+    9
   );
 
   renderer =
@@ -493,7 +748,8 @@ function initThree() {
     )
   );
 
-  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.enabled =
+    true;
 
   gameElement.appendChild(
     renderer.domElement
@@ -517,8 +773,9 @@ function initThree() {
   animate();
 }
 
+
 /* =========================================================
-   LIGHTS
+   LIGHTING
 ========================================================= */
 
 function createLights() {
@@ -529,7 +786,9 @@ function createLights() {
       0.7
     );
 
-  scene.add(ambient);
+  scene.add(
+    ambient
+  );
 
   const sun =
     new THREE.DirectionalLight(
@@ -543,10 +802,14 @@ function createLights() {
     20
   );
 
-  sun.castShadow = true;
+  sun.castShadow =
+    true;
 
-  scene.add(sun);
+  scene.add(
+    sun
+  );
 }
+
 
 /* =========================================================
    PLAYER CAR
@@ -586,6 +849,7 @@ function createPlayerCar() {
       roughness: 0.25
     });
 
+
   /* BODY */
 
   const body =
@@ -598,11 +862,14 @@ function createPlayerCar() {
       bodyMaterial
     );
 
-  body.position.y = 0.65;
+  body.position.y =
+    0.65;
 
-  body.castShadow = true;
+  body.castShadow =
+    true;
 
   car.add(body);
+
 
   /* NOSE */
 
@@ -622,9 +889,8 @@ function createPlayerCar() {
     -1.8
   );
 
-  nose.castShadow = true;
-
   car.add(nose);
+
 
   /* CABIN */
 
@@ -644,9 +910,8 @@ function createPlayerCar() {
     0.25
   );
 
-  cabin.castShadow = true;
-
   car.add(cabin);
+
 
   /* WINDSHIELD */
 
@@ -667,9 +932,14 @@ function createPlayerCar() {
   );
 
   windshield.rotation.x =
-    THREE.MathUtils.degToRad(-15);
+    THREE.MathUtils.degToRad(
+      -15
+    );
 
-  car.add(windshield);
+  car.add(
+    windshield
+  );
+
 
   /* REAR GLASS */
 
@@ -690,11 +960,16 @@ function createPlayerCar() {
   );
 
   rearGlass.rotation.x =
-    THREE.MathUtils.degToRad(15);
+    THREE.MathUtils.degToRad(
+      15
+    );
 
-  car.add(rearGlass);
+  car.add(
+    rearGlass
+  );
 
-  /* STRIPE */
+
+  /* CENTER STRIPE */
 
   const stripe =
     new THREE.Mesh(
@@ -714,6 +989,7 @@ function createPlayerCar() {
 
   car.add(stripe);
 
+
   /* SPOILER */
 
   const spoilerBar =
@@ -732,7 +1008,10 @@ function createPlayerCar() {
     1.9
   );
 
-  car.add(spoilerBar);
+  car.add(
+    spoilerBar
+  );
+
 
   const spoilerLeft =
     new THREE.Mesh(
@@ -750,7 +1029,10 @@ function createPlayerCar() {
     1.9
   );
 
-  car.add(spoilerLeft);
+  car.add(
+    spoilerLeft
+  );
+
 
   const spoilerRight =
     spoilerLeft.clone();
@@ -758,7 +1040,10 @@ function createPlayerCar() {
   spoilerRight.position.x =
     0.8;
 
-  car.add(spoilerRight);
+  car.add(
+    spoilerRight
+  );
+
 
   /* HEADLIGHTS */
 
@@ -769,7 +1054,10 @@ function createPlayerCar() {
       emissiveIntensity: 2
     });
 
-  [-0.75, 0.75].forEach(
+  [
+    -0.75,
+    0.75
+  ].forEach(
     x => {
 
       const light =
@@ -788,13 +1076,19 @@ function createPlayerCar() {
         -2.18
       );
 
-      car.add(light);
+      car.add(
+        light
+      );
     }
   );
 
+
   /* SIDE SKIRTS */
 
-  [-1.22, 1.22].forEach(
+  [
+    -1.22,
+    1.22
+  ].forEach(
     x => {
 
       const skirt =
@@ -813,9 +1107,12 @@ function createPlayerCar() {
         0
       );
 
-      car.add(skirt);
+      car.add(
+        skirt
+      );
     }
   );
+
 
   /* WHEELS */
 
@@ -862,9 +1159,13 @@ function createPlayerCar() {
         pos[2]
       );
 
-      wheel.castShadow = true;
+      wheel.castShadow =
+        true;
 
-      car.add(wheel);
+      car.add(
+        wheel
+      );
+
 
       const rim =
         new THREE.Mesh(
@@ -886,9 +1187,12 @@ function createPlayerCar() {
         pos[2]
       );
 
-      car.add(rim);
+      car.add(
+        rim
+      );
     }
   );
+
 
   car.position.set(
     0,
@@ -896,8 +1200,11 @@ function createPlayerCar() {
     5
   );
 
-  scene.add(car);
+  scene.add(
+    car
+  );
 }
+
 
 /* =========================================================
    WORLD
@@ -923,13 +1230,27 @@ function createWorld() {
   ground.position.z =
     -WORLD_LENGTH / 2;
 
-  ground.receiveShadow = true;
+  ground.receiveShadow =
+    true;
 
-  ground.userData.isGround = true;
+  ground.userData.isGround =
+    true;
 
-  scene.add(ground);
+  scene.add(
+    ground
+  );
 
-  /* ROAD */
+
+  /*
+     ROAD SEGMENTS
+
+     Segmen masih digunakan untuk render,
+     tetapi posisi dan arah setiap segmen
+     sekarang mengikuti kurva kontinu.
+
+     Karena panjang segmen diperkecil,
+     sambungan menjadi jauh lebih halus.
+  */
 
   for (
     let z = 0;
@@ -940,55 +1261,13 @@ function createWorld() {
     createRoadSegment(z);
   }
 
-  /* ENVIRONMENT */
 
   createEnvironment();
 }
 
-/* =========================================================
-   ROAD CURVE
-========================================================= */
-
-function getRoadCurve(z) {
-
-  const map =
-    MAPS[currentMap];
-
-  const t =
-    Math.abs(z) /
-    WORLD_LENGTH;
-
-  return (
-    Math.sin(
-      t *
-      Math.PI *
-      3.0
-    ) *
-    4.0 *
-    map.curveStrength +
-
-    Math.sin(
-      t *
-      Math.PI *
-      7.0 +
-      1.2
-    ) *
-    1.8 *
-    map.curveStrength +
-
-    Math.sin(
-      t *
-      Math.PI *
-      13.0 +
-      0.4
-    ) *
-    0.8 *
-    map.curveStrength
-  );
-}
 
 /* =========================================================
-   ROAD OBJECT REGISTRATION
+   ROAD OBJECT REGISTER
 ========================================================= */
 
 function registerRoadObject(
@@ -1014,55 +1293,67 @@ function registerRoadObject(
   object.userData.baseRotationY =
     object.rotation.y;
 
-  roadObjects.push(object);
+  roadObjects.push(
+    object
+  );
 
-  scene.add(object);
+  scene.add(
+    object
+  );
 
   updateRoadObjectTransform(
     object
   );
 }
 
+
 /* =========================================================
-   ROAD OBJECT TRANSFORM
+   ROAD TRANSFORM
 ========================================================= */
 
 function updateRoadObjectTransform(
   object
 ) {
 
-  let roadZ =
+  const roadZ =
     object.userData.roadZ;
 
   const offset =
-    object.userData.roadOffset || 0;
+    object.userData.roadOffset ||
+    0;
 
   const roadX =
-    getRoadCurve(roadZ);
+    getRoadCurve(
+      roadZ
+    );
+
+  const roadY =
+    getRoadHeight(
+      roadZ
+    );
 
   object.position.x =
-    roadX + offset;
+    roadX +
+    offset;
 
   object.position.z =
     roadZ;
 
   object.position.y =
-    object.userData.roadY || 0;
+    roadY +
+    (
+      object.userData.roadY ||
+      0
+    );
+
 
   if (
     object.userData.rotateWithRoad
   ) {
 
-    const aheadZ =
-      roadZ - 1;
-
-    const aheadX =
-      getRoadCurve(aheadZ);
-
     const angle =
-      Math.atan2(
-        aheadX - roadX,
-        -1
+      getRoadDirection(
+        roadZ
       );
 
     object.rotation.y =
@@ -1071,26 +1362,40 @@ function updateRoadObjectTransform(
   }
 }
 
+
 /* =========================================================
-   ROAD SEGMENT
+   SMOOTH ROAD SEGMENT
 ========================================================= */
 
-function createRoadSegment(z) {
+function createRoadSegment(
+  z
+) {
 
   const map =
     MAPS[currentMap];
 
-  /* ROAD */
+
+  /* =====================================================
+     ROAD
+  ===================================================== */
 
   const road =
     new THREE.Mesh(
       new THREE.BoxGeometry(
         ROAD_WIDTH,
         0.15,
-        ROAD_SEGMENT_LENGTH + 0.3
+        ROAD_SEGMENT_LENGTH +
+          0.25
       ),
       new THREE.MeshStandardMaterial({
-        color: map.road
+        color:
+          map.road,
+
+        roughness:
+          0.92,
+
+        metalness:
+          0.05
       })
     );
 
@@ -1105,52 +1410,136 @@ function createRoadSegment(z) {
     true
   );
 
-  road.receiveShadow = true;
+  road.receiveShadow =
+    true;
 
-  /* CENTER LINE */
 
-  const center =
+  /* =====================================================
+     CENTER MARKING
+  ===================================================== */
+
+  const centerDash =
     new THREE.Mesh(
       new THREE.BoxGeometry(
         0.18,
-        0.025,
-        ROAD_SEGMENT_LENGTH *
-          0.55
+        0.04,
+        6.2
       ),
       new THREE.MeshStandardMaterial({
-        color: 0xffffff
+        color:
+          0xf5f5f5,
+
+        roughness:
+          0.35
       })
     );
 
-  center.userData.roadType =
-    "center";
+  centerDash.userData.roadType =
+    "centerDash";
 
   registerRoadObject(
-    center,
+    centerDash,
     z,
     0,
-    0.04,
+    0.055,
     true
   );
 
-  /* ROAD EDGES */
 
-  [-1, 1].forEach(
+  /* =====================================================
+     LEFT LANE MARKING
+  ===================================================== */
+
+  const leftLane =
+    new THREE.Mesh(
+      new THREE.BoxGeometry(
+        0.09,
+        0.025,
+        5.0
+      ),
+      new THREE.MeshStandardMaterial({
+        color:
+          0xd9d9d9,
+
+        roughness:
+          0.4
+      })
+    );
+
+  leftLane.userData.roadType =
+    "laneDash";
+
+  registerRoadObject(
+    leftLane,
+    z,
+    -2.15,
+    0.045,
+    true
+  );
+
+
+  /* =====================================================
+     RIGHT LANE MARKING
+  ===================================================== */
+
+  const rightLane =
+    new THREE.Mesh(
+      new THREE.BoxGeometry(
+        0.09,
+        0.025,
+        5.0
+      ),
+      new THREE.MeshStandardMaterial({
+        color:
+          0xd9d9d9,
+
+        roughness:
+          0.4
+      })
+    );
+
+  rightLane.userData.roadType =
+    "laneDash";
+
+  registerRoadObject(
+    rightLane,
+    z,
+    2.15,
+    0.045,
+    true
+  );
+
+
+  /* =====================================================
+     ROAD EDGES
+  ===================================================== */
+
+  [
+    -1,
+    1
+  ].forEach(
     side => {
 
       const edge =
         new THREE.Mesh(
           new THREE.BoxGeometry(
-            0.18,
-            0.04,
+            0.20,
+            0.055,
             ROAD_SEGMENT_LENGTH
           ),
           new THREE.MeshStandardMaterial({
-            color: map.edge,
+            color:
+              map.edge,
+
             emissive:
               currentMap === 5
                 ? map.edge
-                : 0x000000
+                : 0x000000,
+
+            emissiveIntensity:
+              currentMap === 5
+                ? 1.2
+                : 0
           })
         );
 
@@ -1161,31 +1550,40 @@ function createRoadSegment(z) {
         edge,
         z,
         side *
-          (
-            ROAD_WIDTH / 2 -
-            0.15
-          ),
-        0.05,
+        (
+          ROAD_WIDTH / 2 -
+          0.15
+        ),
+        0.055,
         true
       );
     }
   );
 
-  /* SHOULDER */
 
-  [-1, 1].forEach(
+  /* =====================================================
+     SHOULDER
+  ===================================================== */
+
+  [
+    -1,
+    1
+  ].forEach(
     side => {
 
       const shoulder =
         new THREE.Mesh(
           new THREE.BoxGeometry(
             2.4,
-            0.1,
+            0.10,
             ROAD_SEGMENT_LENGTH
           ),
           new THREE.MeshStandardMaterial({
             color:
-              map.shoulder
+              map.shoulder,
+
+            roughness:
+              1
           })
         );
 
@@ -1196,16 +1594,17 @@ function createRoadSegment(z) {
         shoulder,
         z,
         side *
-          (
-            ROAD_WIDTH / 2 +
-            1.25
-          ),
+        (
+          ROAD_WIDTH / 2 +
+          1.25
+        ),
         -0.02,
         true
       );
     }
   );
 }
+
 
 /* =========================================================
    ENVIRONMENT
@@ -1215,15 +1614,23 @@ function createEnvironment() {
 
   /* TREES */
 
-  for (let i = 0; i < 120; i++) {
+  for (
+    let i = 0;
+    i < 120;
+    i++
+  ) {
 
     const z =
       -20 -
       Math.random() *
-      (WORLD_LENGTH - 30);
+      (
+        WORLD_LENGTH -
+        30
+      );
 
     const side =
-      Math.random() < 0.5
+      Math.random() <
+      0.5
         ? -1
         : 1;
 
@@ -1232,7 +1639,8 @@ function createEnvironment() {
       (
         ROAD_WIDTH / 2 +
         5 +
-        Math.random() * 20
+        Math.random() *
+        20
       );
 
     createTree(
@@ -1241,17 +1649,26 @@ function createEnvironment() {
     );
   }
 
+
   /* BUSHES */
 
-  for (let i = 0; i < 160; i++) {
+  for (
+    let i = 0;
+    i < 160;
+    i++
+  ) {
 
     const z =
       -20 -
       Math.random() *
-      (WORLD_LENGTH - 30);
+      (
+        WORLD_LENGTH -
+        30
+      );
 
     const side =
-      Math.random() < 0.5
+      Math.random() <
+      0.5
         ? -1
         : 1;
 
@@ -1260,7 +1677,8 @@ function createEnvironment() {
       (
         ROAD_WIDTH / 2 +
         3 +
-        Math.random() * 25
+        Math.random() *
+        25
       );
 
     createBush(
@@ -1269,79 +1687,110 @@ function createEnvironment() {
     );
   }
 
+
   /* MOUNTAINS */
 
-  for (let i = 0; i < 25; i++) {
+  for (
+    let i = 0;
+    i < 25;
+    i++
+  ) {
 
     const z =
       -50 -
       Math.random() *
-      (WORLD_LENGTH - 50);
+      (
+        WORLD_LENGTH -
+        50
+      );
 
     const side =
-      Math.random() < 0.5
+      Math.random() <
+      0.5
         ? -1
         : 1;
 
     createMountain(
       z,
       side *
-        (
-          35 +
-          Math.random() * 35
-        )
+      (
+        35 +
+        Math.random() *
+        35
+      )
     );
   }
 
+
   /* CACTUS */
 
-  for (let i = 0; i < 30; i++) {
+  for (
+    let i = 0;
+    i < 30;
+    i++
+  ) {
 
     const z =
       -20 -
       Math.random() *
-      (WORLD_LENGTH - 30);
+      (
+        WORLD_LENGTH -
+        30
+      );
 
     const side =
-      Math.random() < 0.5
+      Math.random() <
+      0.5
         ? -1
         : 1;
 
     createCactus(
       z,
       side *
-        (
-          ROAD_WIDTH / 2 +
-          7 +
-          Math.random() * 18
-        )
+      (
+        ROAD_WIDTH / 2 +
+        7 +
+        Math.random() *
+        18
+      )
     );
   }
 
+
   /* BUILDINGS */
 
-  for (let i = 0; i < 45; i++) {
+  for (
+    let i = 0;
+    i < 45;
+    i++
+  ) {
 
     const z =
       -20 -
       Math.random() *
-      (WORLD_LENGTH - 30);
+      (
+        WORLD_LENGTH -
+        30
+      );
 
     const side =
-      Math.random() < 0.5
+      Math.random() <
+      0.5
         ? -1
         : 1;
 
     createBuilding(
       z,
       side *
-        (
-          ROAD_WIDTH / 2 +
-          10 +
-          Math.random() * 22
-        )
+      (
+        ROAD_WIDTH / 2 +
+        10 +
+        Math.random() *
+        22
+      )
     );
   }
+
 
   /* STREET LIGHTS */
 
@@ -1367,6 +1816,7 @@ function createEnvironment() {
   }
 }
 
+
 /* =========================================================
    TREE
 ========================================================= */
@@ -1388,13 +1838,18 @@ function createTree(
         8
       ),
       new THREE.MeshStandardMaterial({
-        color: 0x6d421f
+        color:
+          0x6d421f
       })
     );
 
-  trunk.position.y = 1.1;
+  trunk.position.y =
+    1.1;
 
-  tree.add(trunk);
+  tree.add(
+    trunk
+  );
+
 
   const leaves =
     new THREE.Mesh(
@@ -1411,13 +1866,18 @@ function createTree(
       })
     );
 
-  leaves.position.y = 3.0;
+  leaves.position.y =
+    3.0;
 
-  tree.add(leaves);
+  tree.add(
+    leaves
+  );
+
 
   const scale =
     0.7 +
-    Math.random() * 1.0;
+    Math.random() *
+    1.0;
 
   tree.scale.set(
     scale,
@@ -1437,6 +1897,7 @@ function createTree(
   );
 }
 
+
 /* =========================================================
    BUSH
 ========================================================= */
@@ -1450,8 +1911,8 @@ function createBush(
     new THREE.Mesh(
       new THREE.SphereGeometry(
         0.65 +
-          Math.random() *
-            0.5,
+        Math.random() *
+        0.5,
         8,
         8
       ),
@@ -1463,9 +1924,11 @@ function createBush(
       })
     );
 
-  bush.scale.y = 0.65;
+  bush.scale.y =
+    0.65;
 
-  bush.position.y = 0.45;
+  bush.position.y =
+    0.45;
 
   bush.userData.roadType =
     "bush";
@@ -1478,6 +1941,7 @@ function createBush(
     true
   );
 }
+
 
 /* =========================================================
    MOUNTAIN
@@ -1492,17 +1956,21 @@ function createMountain(
     new THREE.Mesh(
       new THREE.ConeGeometry(
         8 +
-          Math.random() * 7,
+        Math.random() *
+        7,
         15 +
-          Math.random() * 12,
+        Math.random() *
+        12,
         6
       ),
       new THREE.MeshStandardMaterial({
-        color: 0x5d665e
+        color:
+          0x5d665e
       })
     );
 
-  mountain.position.y = 7;
+  mountain.position.y =
+    7;
 
   mountain.userData.roadType =
     "mountain";
@@ -1515,6 +1983,7 @@ function createMountain(
     false
   );
 }
+
 
 /* =========================================================
    CACTUS
@@ -1530,8 +1999,10 @@ function createCactus(
 
   const material =
     new THREE.MeshStandardMaterial({
-      color: 0x3d7d3b
+      color:
+        0x3d7d3b
     });
+
 
   const main =
     new THREE.Mesh(
@@ -1544,9 +2015,13 @@ function createCactus(
       material
     );
 
-  main.position.y = 1.25;
+  main.position.y =
+    1.25;
 
-  cactus.add(main);
+  cactus.add(
+    main
+  );
+
 
   const arm =
     new THREE.Mesh(
@@ -1568,7 +2043,10 @@ function createCactus(
   arm.rotation.z =
     Math.PI / 2;
 
-  cactus.add(arm);
+  cactus.add(
+    arm
+  );
+
 
   cactus.userData.roadType =
     "cactus";
@@ -1582,6 +2060,7 @@ function createCactus(
   );
 }
 
+
 /* =========================================================
    BUILDING
 ========================================================= */
@@ -1593,15 +2072,19 @@ function createBuilding(
 
   const height =
     5 +
-    Math.random() * 14;
+    Math.random() *
+    14;
 
   const width =
     3 +
-    Math.random() * 5;
+    Math.random() *
+    5;
 
   const depth =
     3 +
-    Math.random() * 4;
+    Math.random() *
+    4;
+
 
   const building =
     new THREE.Mesh(
@@ -1611,8 +2094,11 @@ function createBuilding(
         depth
       ),
       new THREE.MeshStandardMaterial({
-        color: 0x27313a,
-        roughness: 0.8
+        color:
+          0x27313a,
+
+        roughness:
+          0.8
       })
     );
 
@@ -1622,14 +2108,23 @@ function createBuilding(
   building.userData.roadType =
     "building";
 
-  if (currentMap === 5) {
+
+  if (
+    currentMap === 5
+  ) {
 
     const windowMaterial =
       new THREE.MeshStandardMaterial({
-        color: 0xffd54f,
-        emissive: 0xffb300,
-        emissiveIntensity: 1.5
+        color:
+          0xffd54f,
+
+        emissive:
+          0xffb300,
+
+        emissiveIntensity:
+          1.5
       });
+
 
     for (
       let y = 2;
@@ -1654,9 +2149,12 @@ function createBuilding(
           0.03
       );
 
-      building.add(window);
+      building.add(
+        window
+      );
     }
   }
+
 
   registerRoadObject(
     building,
@@ -1666,6 +2164,7 @@ function createBuilding(
     false
   );
 }
+
 
 /* =========================================================
    STREET LIGHT
@@ -1681,9 +2180,13 @@ function createStreetLight(
 
   const metal =
     new THREE.MeshStandardMaterial({
-      color: 0x555555,
-      metalness: 0.6
+      color:
+        0x555555,
+
+      metalness:
+        0.6
     });
+
 
   const post =
     new THREE.Mesh(
@@ -1696,9 +2199,13 @@ function createStreetLight(
       metal
     );
 
-  post.position.y = 2.25;
+  post.position.y =
+    2.25;
 
-  pole.add(post);
+  pole.add(
+    post
+  );
+
 
   const lamp =
     new THREE.Mesh(
@@ -1708,8 +2215,12 @@ function createStreetLight(
         10
       ),
       new THREE.MeshStandardMaterial({
-        color: 0xfff2b2,
-        emissive: 0xffc107,
+        color:
+          0xfff2b2,
+
+        emissive:
+          0xffc107,
+
         emissiveIntensity:
           currentMap === 5
             ? 2.5
@@ -1723,7 +2234,10 @@ function createStreetLight(
     0
   );
 
-  pole.add(lamp);
+  pole.add(
+    lamp
+  );
+
 
   pole.userData.roadType =
     "streetLight";
@@ -1732,24 +2246,25 @@ function createStreetLight(
     pole,
     z,
     side *
-      (
-        ROAD_WIDTH / 2 +
-        2.2
-      ),
+    (
+      ROAD_WIDTH / 2 +
+      2.2
+    ),
     0,
     true
   );
 }
 
+
 /* =========================================================
-   ENEMY CARS
+   ENEMIES
 ========================================================= */
 
 function createEnemies() {
 
   for (
     let i = 0;
-    i < jumlahEnemy;
+    i < 6;
     i++
   ) {
 
@@ -1761,30 +2276,45 @@ function createEnemies() {
         ]
       );
 
+    enemy.userData.index =
+      i;
+
+    enemy.userData.active =
+      true;
+
     enemy.userData.roadZ =
-      -35 -
-      i * 65 -
-      Math.random() * 35;
+      -50 -
+      i * 65;
 
     enemy.userData.laneOffset =
-      [-3.2, -1.1, 1.1, 3.2][
-        i % 4
+      LANES[
+        i %
+        LANES.length
       ];
-
-    enemy.userData.speed =
-      ENEMY_SPEED_MIN +
-      Math.random() *
-        (
-          ENEMY_SPEED_MAX -
-          ENEMY_SPEED_MIN
-        );
 
     enemy.userData.targetLane =
       enemy.userData.laneOffset;
 
-    scene.add(enemy);
+    enemy.userData.speed =
+      ENEMY_BASE_SPEED[0];
 
-    enemyCars.push(enemy);
+    enemy.userData.changeTimer =
+      3 +
+      Math.random() *
+      5;
+
+    enemy.userData.aggression =
+      0.5 +
+      Math.random() *
+      0.5;
+
+    scene.add(
+      enemy
+    );
+
+    enemyCars.push(
+      enemy
+    );
 
     updateEnemyTransform(
       enemy
@@ -1792,8 +2322,9 @@ function createEnemies() {
   }
 }
 
+
 /* =========================================================
-   ENEMY CAR MODEL
+   ENEMY CAR
 ========================================================= */
 
 function createEnemyCar(
@@ -1803,17 +2334,23 @@ function createEnemyCar(
   const group =
     new THREE.Group();
 
+
   const material =
     new THREE.MeshStandardMaterial({
       color,
-      roughness: 0.4,
-      metalness: 0.3
+      roughness:
+        0.4,
+      metalness:
+        0.3
     });
+
 
   const black =
     new THREE.MeshStandardMaterial({
-      color: 0x111111
+      color:
+        0x111111
     });
+
 
   /* BODY */
 
@@ -1827,11 +2364,16 @@ function createEnemyCar(
       material
     );
 
-  body.position.y = 0.62;
+  body.position.y =
+    0.62;
 
-  body.castShadow = true;
+  body.castShadow =
+    true;
 
-  group.add(body);
+  group.add(
+    body
+  );
+
 
   /* CABIN */
 
@@ -1851,14 +2393,19 @@ function createEnemyCar(
     0.2
   );
 
-  group.add(cabin);
+  group.add(
+    cabin
+  );
+
 
   /* WHEELS */
 
   const wheelMaterial =
     new THREE.MeshStandardMaterial({
-      color: 0x080808
+      color:
+        0x080808
     });
+
 
   const positions = [
     [-1.05, 0.4, -1.25],
@@ -1866,6 +2413,7 @@ function createEnemyCar(
     [-1.05, 0.4, 1.25],
     [1.05, 0.4, 1.25]
   ];
+
 
   positions.forEach(
     pos => {
@@ -1890,12 +2438,16 @@ function createEnemyCar(
         pos[2]
       );
 
-      group.add(wheel);
+      group.add(
+        wheel
+      );
     }
   );
 
+
   return group;
 }
+
 
 /* =========================================================
    ENEMY TRANSFORM
@@ -1905,9 +2457,17 @@ function updateEnemyTransform(
   enemy
 ) {
 
+  const roadZ =
+    enemy.userData.roadZ;
+
   const roadX =
     getRoadCurve(
-      enemy.userData.roadZ
+      roadZ
+    );
+
+  const roadY =
+    getRoadHeight(
+      roadZ
     );
 
   enemy.position.x =
@@ -1915,22 +2475,18 @@ function updateEnemyTransform(
     enemy.userData.laneOffset;
 
   enemy.position.z =
-    enemy.userData.roadZ;
+    roadZ;
 
-  enemy.position.y = 0;
+  enemy.position.y =
+    roadY;
 
-  const aheadZ =
-    enemy.userData.roadZ - 1;
-
-  const aheadX =
-    getRoadCurve(aheadZ);
 
   enemy.rotation.y =
-    Math.atan2(
-      aheadX - roadX,
-      -1
+    getRoadDirection(
+      roadZ
     );
 }
+
 
 /* =========================================================
    MAP VISUALS
@@ -1938,15 +2494,22 @@ function updateEnemyTransform(
 
 function applyMapVisuals() {
 
-  if (!scene) return;
+  if (
+    !scene
+  ) {
+
+    return;
+  }
 
   const map =
     MAPS[currentMap];
+
 
   scene.background =
     new THREE.Color(
       map.sky
     );
+
 
   scene.fog =
     new THREE.Fog(
@@ -1954,12 +2517,12 @@ function applyMapVisuals() {
       currentMap === 5
         ? 80
         : 130,
+
       currentMap === 5
         ? 650
         : 1000
     );
 
-  /* GROUND */
 
   scene.traverse(
     object => {
@@ -1976,19 +2539,13 @@ function applyMapVisuals() {
     }
   );
 
-  /* ROAD OBJECT COLORS */
 
   roadObjects.forEach(
     object => {
 
-      if (
-        !object.userData
-      ) {
-        return;
-      }
-
       const type =
         object.userData.roadType;
+
 
       if (
         type === "road"
@@ -1998,6 +2555,7 @@ function applyMapVisuals() {
           map.road
         );
       }
+
 
       if (
         type === "edge"
@@ -2016,8 +2574,47 @@ function applyMapVisuals() {
               ? map.edge
               : 0x000000
           );
+
+          object.material.emissiveIntensity =
+            currentMap === 5
+              ? 1.2
+              : 0;
         }
       }
+
+
+      if (
+        type === "centerDash"
+      ) {
+
+        object.material.color.set(
+          0xf5f5f5
+        );
+
+        if (
+          object.material.emissive
+        ) {
+
+          object.material.emissive.set(
+            currentMap === 5
+              ? 0x00e5ff
+              : 0x000000
+          );
+        }
+      }
+
+
+      if (
+        type === "laneDash"
+      ) {
+
+        object.material.color.set(
+          currentMap === 5
+            ? 0x9defff
+            : 0xd9d9d9
+        );
+      }
+
 
       if (
         type === "shoulder"
@@ -2028,29 +2625,6 @@ function applyMapVisuals() {
         );
       }
 
-      if (
-        type === "tree"
-      ) {
-
-        object.traverse(
-          child => {
-
-            if (
-              child.material &&
-              child.geometry &&
-              child.geometry.type ===
-                "ConeGeometry"
-            ) {
-
-              child.material.color.set(
-                currentMap === 2
-                  ? 0x164d2a
-                  : 0x208c3c
-              );
-            }
-          }
-        );
-      }
 
       if (
         type === "bush"
@@ -2065,8 +2639,10 @@ function applyMapVisuals() {
     }
   );
 
+
   showLevelNotification();
 }
+
 
 /* =========================================================
    LEVEL NOTIFICATION
@@ -2077,10 +2653,9 @@ let notificationTimer = null;
 function showLevelNotification() {
 
   if (
-    !levelNotification ||
-    !levelNumber ||
-    !levelName
+    !levelNotification
   ) {
+
     return;
   }
 
@@ -2111,6 +2686,7 @@ function showLevelNotification() {
     );
 }
 
+
 /* =========================================================
    START GAME
 ========================================================= */
@@ -2125,6 +2701,7 @@ function startGame(
       1,
       5
     );
+
 
   mainMenu.classList.add(
     "hidden"
@@ -2146,19 +2723,17 @@ function startGame(
     "hidden"
   );
 
+
   gameStarted = true;
 
   gameOverState = false;
 
-  /* RESET PHYSICS */
+
+  /* RESET */
 
   speed = 0;
 
   score = 0;
-
-  /*
-    Start distance is based on selected level.
-  */
 
   distance =
     (
@@ -2179,27 +2754,29 @@ function startGame(
 
   cameraShakeTime = 0;
 
+
   stopAllInput();
 
-  /* RESET PLAYER */
 
-  if (car) {
+  /* PLAYER */
+
+  if (
+    car
+  ) {
 
     car.position.x =
       getRoadCurve(5);
 
-    car.position.y = 0;
+    car.position.y =
+      getRoadHeight(5);
 
-    car.position.z = 5;
+    car.position.z =
+      5;
 
-    car.rotation.y = 0;
+    car.rotation.y =
+      getRoadDirection(5);
   }
 
-  /* RESET WORLD */
-
-  resetRoadObjects();
-
-  /* RESET ENEMIES */
 
   resetEnemies();
 
@@ -2208,33 +2785,6 @@ function startGame(
   updateHUD();
 }
 
-/* =========================================================
-   RESET ROAD OBJECTS
-========================================================= */
-
-function resetRoadObjects() {
-
-  roadObjects.forEach(
-    (object, index) => {
-
-      if (
-        object.userData &&
-        typeof object.userData.roadZ ===
-          "number"
-      ) {
-
-        /*
-          Keep original positions.
-          The world will start moving only
-          after GAS is pressed.
-        */
-
-        object.userData.roadZ =
-          object.userData.roadZ;
-      }
-    }
-  );
-}
 
 /* =========================================================
    RESET ENEMIES
@@ -2242,26 +2792,78 @@ function resetRoadObjects() {
 
 function resetEnemies() {
 
+  const activeCount =
+    ENEMY_COUNT_BY_LEVEL[
+      currentMap - 1
+    ];
+
+
   enemyCars.forEach(
-    (enemy, i) => {
+    (
+      enemy,
+      i
+    ) => {
+
+      enemy.userData.active =
+        i < activeCount;
+
+
+      if (
+        !enemy.userData.active
+      ) {
+
+        enemy.visible =
+          false;
+
+        return;
+      }
+
+
+      enemy.visible =
+        true;
+
+
+      const spacing =
+        Math.max(
+          38,
+          72 -
+          currentMap *
+          6
+        );
+
 
       enemy.userData.roadZ =
-        -35 -
-        i * 60 -
-        Math.random() * 60;
+        -40 -
+        i *
+        spacing -
+        Math.random() *
+        45;
+
 
       enemy.userData.laneOffset =
-        [-3.2, -1.1, 1.1, 3.2][
-          i % 4
+        LANES[
+          Math.floor(
+            Math.random() *
+            LANES.length
+          )
         ];
 
+
+      enemy.userData.targetLane =
+        enemy.userData.laneOffset;
+
+
       enemy.userData.speed =
-        ENEMY_SPEED_MIN +
+        getEnemySpeed(
+          enemy
+        );
+
+
+      enemy.userData.changeTimer =
+        2 +
         Math.random() *
-          (
-            ENEMY_SPEED_MAX -
-            ENEMY_SPEED_MIN
-          );
+        4;
+
 
       updateEnemyTransform(
         enemy
@@ -2270,279 +2872,217 @@ function resetEnemies() {
   );
 }
 
+
 /* =========================================================
-   GAME OVER
+   ENEMY SPEED
 ========================================================= */
 
-function endGame() {
+function getEnemySpeed(
+  enemy
+) {
 
-  if (gameOverState) {
-    return;
-  }
+  const mapIndex =
+    currentMap - 1;
 
-  gameOverState = true;
 
-  speed = 0;
+  const base =
+    ENEMY_BASE_SPEED[
+      mapIndex
+    ];
 
-  stopAllInput();
+
+  const max =
+    ENEMY_MAX_SPEED[
+      mapIndex
+    ];
+
+
+  let result =
+    base +
+    Math.random() *
+    (
+      max -
+      base
+    );
+
 
   if (
-    score >
-    bestScore
+    Math.random() <
+    0.30 +
+    currentMap *
+    0.06
   ) {
 
-    bestScore =
-      Math.floor(score);
-
-    localStorage.setItem(
-      "lexaBestScore",
-      bestScore
-    );
+    result +=
+      0.025 +
+      Math.random() *
+      0.04;
   }
 
-  const finalDistance =
-    document.getElementById(
-      "finalDistance"
-    );
 
-  const finalScore =
-    document.getElementById(
-      "finalScore"
-    );
-
-  const finalBestScore =
-    document.getElementById(
-      "finalBestScore"
-    );
-
-  const finalLevel =
-    document.getElementById(
-      "finalLevel"
-    );
-
-  if (finalDistance) {
-
-    finalDistance.textContent =
-      `${Math.floor(
-        distance
-      )} m`;
-  }
-
-  if (finalScore) {
-
-    finalScore.textContent =
-      Math.floor(score);
-  }
-
-  if (finalBestScore) {
-
-    finalBestScore.textContent =
-      Math.floor(
-        bestScore
-      );
-  }
-
-  if (finalLevel) {
-
-    finalLevel.textContent =
-      currentMap;
-  }
-
-  gameOver.classList.remove(
-    "hidden"
+  return Math.min(
+    result,
+    max
   );
 }
 
+
 /* =========================================================
-   LEVEL UNLOCK
+   ENEMY LANE CHOICE
 ========================================================= */
 
-function checkUnlock() {
+function chooseEnemyLane(
+  enemy
+) {
 
-  let newUnlocked =
-    unlockedLevel;
+  const current =
+    enemy.userData.laneOffset;
 
-  if (
-    distance >= 100
-  ) {
 
-    newUnlocked =
-      Math.max(
-        newUnlocked,
-        2
-      );
-  }
-
-  if (
-    distance >= 200
-  ) {
-
-    newUnlocked =
-      Math.max(
-        newUnlocked,
-        3
-      );
-  }
-
-  if (
-    distance >= 300
-  ) {
-
-    newUnlocked =
-      Math.max(
-        newUnlocked,
-        4
-      );
-  }
-
-  if (
-    distance >= 400
-  ) {
-
-    newUnlocked =
-      Math.max(
-        newUnlocked,
-        5
-      );
-  }
-
-  if (
-    newUnlocked !==
-    unlockedLevel
-  ) {
-
-    unlockedLevel =
-      newUnlocked;
-
-    localStorage.setItem(
-      "lexaUnlockedLevel",
-      unlockedLevel
+  const possible =
+    LANES.filter(
+      lane =>
+        Math.abs(
+          lane -
+          current
+        ) > 0.5
     );
+
+
+  if (
+    possible.length === 0
+  ) {
+
+    return;
   }
+
+
+  let safeLanes =
+    possible.filter(
+      lane => {
+
+        const playerLane =
+          playerRoadOffset;
+
+        return (
+          Math.abs(
+            lane -
+            playerLane
+          ) > 1.0
+        );
+      }
+    );
+
+
+  if (
+    safeLanes.length === 0
+  ) {
+
+    safeLanes =
+      possible;
+  }
+
+
+  const target =
+    safeLanes[
+      Math.floor(
+        Math.random() *
+        safeLanes.length
+      )
+    ];
+
+
+  enemy.userData.targetLane =
+    target;
 }
 
+
 /* =========================================================
-   UPDATE LEVEL
+   ENEMY LANE MOVEMENT
 ========================================================= */
 
-function updateLevel() {
+function updateEnemyLane(
+  enemy
+) {
 
-  const newMap =
+  const current =
+    enemy.userData.laneOffset;
+
+  const target =
+    enemy.userData.targetLane;
+
+
+  const laneSpeed =
+    0.018 +
+    currentMap *
+    0.003;
+
+
+  if (
+    Math.abs(
+      target -
+      current
+    ) <
+    0.02
+  ) {
+
+    enemy.userData.laneOffset =
+      target;
+
+    return;
+  }
+
+
+  if (
+    target >
+    current
+  ) {
+
+    enemy.userData.laneOffset +=
+      laneSpeed;
+
+  } else {
+
+    enemy.userData.laneOffset -=
+      laneSpeed;
+  }
+
+
+  enemy.userData.laneOffset =
     THREE.MathUtils.clamp(
-      Math.floor(
-        distance / 100
-      ) + 1,
-      1,
-      5
+      enemy.userData.laneOffset,
+      -3.2,
+      3.2
     );
-
-  if (
-    newMap !== currentMap
-  ) {
-
-    currentMap =
-      newMap;
-
-    level =
-      newMap;
-
-    checkUnlock();
-
-    applyMapVisuals();
-  }
-
-  checkUnlock();
 }
 
-/* =========================================================
-   UPDATE HUD
-========================================================= */
-
-function updateHUD() {
-
-  const speedElement =
-    document.getElementById(
-      "speed"
-    );
-
-  const distanceElement =
-    document.getElementById(
-      "distance"
-    );
-
-  const scoreElement =
-    document.getElementById(
-      "score"
-    );
-
-  const levelElement =
-    document.getElementById(
-      "level"
-    );
-
-  const bestScoreElement =
-    document.getElementById(
-      "bestScore"
-    );
-
-  if (speedElement) {
-
-    speedElement.textContent =
-      Math.floor(
-        speed * 12
-      );
-  }
-
-  if (distanceElement) {
-
-    distanceElement.textContent =
-      Math.floor(
-        distance
-      );
-  }
-
-  if (scoreElement) {
-
-    scoreElement.textContent =
-      Math.floor(
-        score
-      );
-  }
-
-  if (levelElement) {
-
-    levelElement.textContent =
-      currentMap;
-  }
-
-  if (bestScoreElement) {
-
-    bestScoreElement.textContent =
-      Math.floor(
-        bestScore
-      );
-  }
-}
 
 /* =========================================================
-   UPDATE PLAYER
+   PLAYER UPDATE
 ========================================================= */
 
 function updatePlayer() {
 
-  if (!gameStarted) {
+  if (
+    !gameStarted
+  ) {
+
     return;
   }
 
-  if (gameOverState) {
+  if (
+    gameOverState
+  ) {
+
     return;
   }
 
-  /* =====================================================
-     GAS
-  ===================================================== */
 
-  if (gasPressed) {
+  /* ACCELERATION */
+
+  if (
+    gasPressed
+  ) {
 
     speed +=
       ACCELERATION;
@@ -2569,11 +3109,12 @@ function updatePlayer() {
     }
   }
 
-  /* =====================================================
-     BRAKE
-  ===================================================== */
 
-  if (brakePressed) {
+  /* BRAKE */
+
+  if (
+    brakePressed
+  ) {
 
     speed -=
       BRAKE_POWER;
@@ -2586,21 +3127,26 @@ function updatePlayer() {
     }
   }
 
-  /* =====================================================
-     STEERING
-  ===================================================== */
 
-  if (steerLeft) {
+  /* STEERING */
+
+  if (
+    steerLeft
+  ) {
 
     steeringVelocity -=
       STEER_ACCELERATION;
   }
 
-  if (steerRight) {
+
+  if (
+    steerRight
+  ) {
 
     steeringVelocity +=
       STEER_ACCELERATION;
   }
+
 
   if (
     !steerLeft &&
@@ -2637,6 +3183,7 @@ function updatePlayer() {
     }
   }
 
+
   steeringVelocity =
     THREE.MathUtils.clamp(
       steeringVelocity,
@@ -2644,17 +3191,20 @@ function updatePlayer() {
       STEER_MAX_SPEED
     );
 
-  /* =====================================================
-     MOVE PLAYER SIDEWAYS
-  ===================================================== */
+
+  /*
+     Steering dibuat sedikit lebih lembut
+     agar cocok dengan highway smooth.
+  */
 
   playerRoadOffset +=
     steeringVelocity *
     (
-      0.65 +
+      0.60 +
       speed *
-      0.055
+      0.052
     );
+
 
   playerRoadOffset =
     THREE.MathUtils.clamp(
@@ -2663,29 +3213,52 @@ function updatePlayer() {
       ROAD_LIMIT
     );
 
+
+  /* PLAYER POSITION */
+
   const roadX =
     getRoadCurve(5);
+
+  const roadY =
+    getRoadHeight(5);
+
 
   car.position.x =
     roadX +
     playerRoadOffset;
 
-  car.position.z = 5;
+  car.position.z =
+    5;
 
   car.position.y =
+    roadY +
     Math.sin(
       performance.now() *
       0.015
     ) *
-    0.015;
+    0.012;
+
+
+  /*
+     Mobil mengikuti arah highway
+     secara halus.
+  */
+
+  const roadDirection =
+    getRoadDirection(5);
+
+
+  const steeringAngle =
+    steeringVelocity *
+    0.65;
+
 
   car.rotation.y =
-    steeringVelocity *
-    0.8;
+    roadDirection +
+    steeringAngle;
 
-  /* =====================================================
-     DISTANCE / SCORE
-  ===================================================== */
+
+  /* DISTANCE */
 
   if (
     speed > 0
@@ -2701,36 +3274,39 @@ function updatePlayer() {
   }
 }
 
+
 /* =========================================================
-   UPDATE ROAD WORLD
+   WORLD MOVEMENT
 ========================================================= */
 
 function updateWorldMovement() {
 
-  if (!gameStarted) {
+  if (
+    !gameStarted
+  ) {
+
     return;
   }
 
-  if (gameOverState) {
+  if (
+    gameOverState
+  ) {
+
     return;
   }
-
-  /*
-    Ini bagian penting.
-
-    Saat GAS ditekan dan speed bertambah,
-    jalan + lingkungan bergerak menuju pemain.
-  */
 
   if (
     speed <= 0
   ) {
+
     return;
   }
+
 
   const worldMove =
     speed *
     WORLD_SPEED_MULTIPLIER;
+
 
   roadObjects.forEach(
     object => {
@@ -2738,10 +3314,6 @@ function updateWorldMovement() {
       object.userData.roadZ +=
         worldMove;
 
-      /*
-        Kalau object sudah melewati pemain,
-        pindahkan kembali ke jauh di depan.
-      */
 
       if (
         object.userData.roadZ >
@@ -2752,6 +3324,7 @@ function updateWorldMovement() {
           WORLD_LENGTH;
       }
 
+
       updateRoadObjectTransform(
         object
       );
@@ -2759,48 +3332,130 @@ function updateWorldMovement() {
   );
 }
 
+
 /* =========================================================
    UPDATE ENEMIES
 ========================================================= */
 
 function updateEnemies() {
 
-  if (!gameStarted) {
+  if (
+    !gameStarted
+  ) {
+
     return;
   }
 
-  if (gameOverState) {
+  if (
+    gameOverState
+  ) {
+
     return;
   }
 
-  /*
-    Dunia bergerak ke pemain berdasarkan
-    speed player.
-
-    Mobil musuh juga mempunyai speed sendiri,
-    sehingga mereka tidak diam.
-  */
 
   const worldMove =
     speed *
     WORLD_SPEED_MULTIPLIER;
 
+
   enemyCars.forEach(
     enemy => {
 
-      /*
-        Enemy bergerak relatif terhadap player.
-      */
+      if (
+        !enemy.userData.active
+      ) {
+
+        return;
+      }
+
 
       enemy.userData.roadZ +=
         enemy.userData.speed -
         worldMove;
 
-      /*
-        Kalau enemy sudah lewat jauh
-        di belakang pemain, spawn lagi
-        di depan.
-      */
+
+      enemy.userData.changeTimer -=
+        0.016;
+
+
+      if (
+        enemy.userData.changeTimer <=
+        0
+      ) {
+
+        const changeChance =
+          0.35 +
+          currentMap *
+          0.10;
+
+
+        if (
+          Math.random() <
+          changeChance
+        ) {
+
+          chooseEnemyLane(
+            enemy
+          );
+        }
+
+
+        enemy.userData.changeTimer =
+          Math.max(
+            1.8,
+            5.5 -
+            currentMap *
+            0.5
+          ) +
+          Math.random() *
+          3;
+      }
+
+
+      updateEnemyLane(
+        enemy
+      );
+
+
+      const relativeZ =
+        enemy.userData.roadZ -
+        5;
+
+
+      if (
+        relativeZ < -80
+      ) {
+
+        enemy.userData.speed +=
+          0.0015;
+
+      } else if (
+        relativeZ > 8
+      ) {
+
+        enemy.userData.speed -=
+          0.001;
+      }
+
+
+      const maxSpeed =
+        ENEMY_MAX_SPEED[
+          currentMap - 1
+        ];
+
+
+      enemy.userData.speed =
+        THREE.MathUtils.clamp(
+          enemy.userData.speed,
+
+          ENEMY_BASE_SPEED[
+            currentMap - 1
+          ],
+
+          maxSpeed
+        );
+
 
       if (
         enemy.userData.roadZ >
@@ -2812,30 +3467,37 @@ function updateEnemies() {
           Math.random() *
           160;
 
+
         enemy.userData.laneOffset =
-          [-3.2, -1.1, 1.1, 3.2][
+          LANES[
             Math.floor(
-              Math.random() * 4
+              Math.random() *
+              LANES.length
             )
           ];
 
+
+        enemy.userData.targetLane =
+          enemy.userData.laneOffset;
+
+
         enemy.userData.speed =
-          ENEMY_SPEED_MIN +
+          getEnemySpeed(
+            enemy
+          );
+
+
+        enemy.userData.changeTimer =
+          2 +
           Math.random() *
-            (
-              ENEMY_SPEED_MAX -
-              ENEMY_SPEED_MIN
-            );
+          4;
       }
 
-      /*
-        Kalau terlalu jauh ke belakang,
-        juga spawn kembali di depan.
-      */
 
       if (
         enemy.userData.roadZ <
-        -WORLD_LENGTH - 50
+        -WORLD_LENGTH -
+        60
       ) {
 
         enemy.userData.roadZ =
@@ -2844,9 +3506,11 @@ function updateEnemies() {
           160;
       }
 
+
       updateEnemyTransform(
         enemy
       );
+
 
       checkCollision(
         enemy
@@ -2854,6 +3518,7 @@ function updateEnemies() {
     }
   );
 }
+
 
 /* =========================================================
    COLLISION
@@ -2869,11 +3534,13 @@ function checkCollision(
       enemy.position.x
     );
 
+
   const dz =
     Math.abs(
       car.position.z -
       enemy.position.z
     );
+
 
   if (
     dx < 1.8 &&
@@ -2883,13 +3550,14 @@ function checkCollision(
     createCollisionEffect(
       car.position.x,
       car.position.y +
-        0.5,
+      0.5,
       car.position.z
     );
 
     endGame();
   }
 }
+
 
 /* =========================================================
    COLLISION EFFECT
@@ -2904,6 +3572,7 @@ function createCollisionEffect(
   cameraShakeTime =
     CAMERA_SHAKE_DURATION;
 
+
   for (
     let i = 0;
     i < 25;
@@ -2914,18 +3583,20 @@ function createCollisionEffect(
       new THREE.Mesh(
         new THREE.SphereGeometry(
           0.06 +
-            Math.random() *
-              0.06,
+          Math.random() *
+          0.06,
           6,
           6
         ),
         new THREE.MeshBasicMaterial({
           color:
-            Math.random() < 0.5
+            Math.random() <
+            0.5
               ? 0xff9800
               : 0xffeb3b
         })
       );
+
 
     particle.position.set(
       x,
@@ -2933,30 +3604,34 @@ function createCollisionEffect(
       z
     );
 
+
     particle.userData.velocity =
       new THREE.Vector3(
         (
           Math.random() -
           0.5
         ) *
-          0.25,
+        0.25,
 
         Math.random() *
-          0.25,
+        0.25,
 
         (
           Math.random() -
           0.5
         ) *
-          0.25
+        0.25
       );
+
 
     particle.userData.life =
       1;
 
+
     scene.add(
       particle
     );
+
 
     collisionParticles.push(
       particle
@@ -2964,8 +3639,9 @@ function createCollisionEffect(
   }
 }
 
+
 /* =========================================================
-   UPDATE PARTICLES
+   PARTICLES
 ========================================================= */
 
 function updateParticles() {
@@ -2974,26 +3650,33 @@ function updateParticles() {
     let i =
       collisionParticles.length -
       1;
+
     i >= 0;
+
     i--
   ) {
 
     const particle =
       collisionParticles[i];
 
+
     particle.position.add(
       particle.userData.velocity
     );
 
+
     particle.userData.velocity.y -=
       0.01;
+
 
     particle.userData.life -=
       0.025;
 
+
     particle.scale.setScalar(
       particle.userData.life
     );
+
 
     if (
       particle.userData.life <=
@@ -3004,9 +3687,11 @@ function updateParticles() {
         particle
       );
 
+
       particle.geometry.dispose();
 
       particle.material.dispose();
+
 
       collisionParticles.splice(
         i,
@@ -3016,24 +3701,37 @@ function updateParticles() {
   }
 }
 
+
 /* =========================================================
    CAMERA
 ========================================================= */
 
 function updateCamera() {
 
-  if (!car) {
+  if (
+    !car
+  ) {
+
     return;
   }
 
+
   const roadX =
     getRoadCurve(5);
+
+
+  const roadDirection =
+    getRoadDirection(5);
+
 
   let targetX =
     roadX +
     playerRoadOffset;
 
-  let targetY = 5;
+
+  let targetY =
+    5;
+
 
   if (
     cameraShakeTime > 0
@@ -3042,12 +3740,14 @@ function updateCamera() {
     cameraShakeTime -=
       0.016;
 
+
     targetX +=
       (
         Math.random() -
         0.5
       ) *
       0.35;
+
 
     targetY +=
       (
@@ -3057,12 +3757,14 @@ function updateCamera() {
       0.25;
   }
 
+
   camera.position.x +=
     (
       targetX -
       camera.position.x
     ) *
     0.08;
+
 
   camera.position.y +=
     (
@@ -3071,6 +3773,7 @@ function updateCamera() {
     ) *
     0.08;
 
+
   camera.position.z +=
     (
       9 -
@@ -3078,15 +3781,34 @@ function updateCamera() {
     ) *
     0.08;
 
+
+  /*
+     Kamera sedikit mengikuti arah highway.
+     Ini membuat tikungan terasa lebih natural.
+  */
+
+  const lookAheadX =
+    getRoadCurve(
+      -12
+    );
+
+
+  const smoothLookX =
+    lookAheadX +
+    playerRoadOffset *
+    0.35;
+
+
   camera.lookAt(
-    targetX,
+    smoothLookX,
     1,
     -10
   );
 }
 
+
 /* =========================================================
-   INPUT HELPERS
+   INPUT RESET
 ========================================================= */
 
 function stopAllInput() {
@@ -3100,6 +3822,7 @@ function stopAllInput() {
   brakePressed = false;
 }
 
+
 /* =========================================================
    MOBILE BUTTON
 ========================================================= */
@@ -3110,11 +3833,18 @@ function bindHoldButton(
 ) {
 
   const element =
-    document.getElementById(id);
+    document.getElementById(
+      id
+    );
 
-  if (!element) {
+
+  if (
+    !element
+  ) {
+
     return;
   }
+
 
   const start =
     event => {
@@ -3123,14 +3853,21 @@ function bindHoldButton(
 
       setter(true);
 
+
       try {
+
         element.setPointerCapture(
           event.pointerId
         );
-      } catch (error) {
+
+      } catch (
+        error
+      ) {
+
         /* ignore */
       }
     };
+
 
   const stop =
     event => {
@@ -3140,6 +3877,7 @@ function bindHoldButton(
       setter(false);
     };
 
+
   element.addEventListener(
     "pointerdown",
     start,
@@ -3147,6 +3885,7 @@ function bindHoldButton(
       passive: false
     }
   );
+
 
   element.addEventListener(
     "pointerup",
@@ -3156,6 +3895,7 @@ function bindHoldButton(
     }
   );
 
+
   element.addEventListener(
     "pointercancel",
     stop,
@@ -3163,6 +3903,7 @@ function bindHoldButton(
       passive: false
     }
   );
+
 
   element.addEventListener(
     "lostpointercapture",
@@ -3172,6 +3913,7 @@ function bindHoldButton(
     }
   );
 
+
   element.addEventListener(
     "contextmenu",
     event => {
@@ -3180,6 +3922,7 @@ function bindHoldButton(
     }
   );
 }
+
 
 /* =========================================================
    CONTROLS
@@ -3195,6 +3938,7 @@ function setupControls() {
     }
   );
 
+
   bindHoldButton(
     "right",
     value => {
@@ -3202,6 +3946,7 @@ function setupControls() {
       steerRight = value;
     }
   );
+
 
   bindHoldButton(
     "gas",
@@ -3211,6 +3956,7 @@ function setupControls() {
     }
   );
 
+
   bindHoldButton(
     "brake",
     value => {
@@ -3219,9 +3965,8 @@ function setupControls() {
     }
   );
 
-  /* =====================================================
-     KEYBOARD
-  ===================================================== */
+
+  /* KEYBOARD */
 
   window.addEventListener(
     "keydown",
@@ -3229,6 +3974,7 @@ function setupControls() {
 
       const key =
         event.key.toLowerCase();
+
 
       if (
         key === "arrowleft" ||
@@ -3238,6 +3984,7 @@ function setupControls() {
         steerLeft = true;
       }
 
+
       if (
         key === "arrowright" ||
         key === "d"
@@ -3245,6 +3992,7 @@ function setupControls() {
 
         steerRight = true;
       }
+
 
       if (
         key === "arrowup" ||
@@ -3254,6 +4002,7 @@ function setupControls() {
         gasPressed = true;
       }
 
+
       if (
         key === "arrowdown" ||
         key === "s" ||
@@ -3262,6 +4011,7 @@ function setupControls() {
 
         brakePressed = true;
       }
+
 
       if (
         [
@@ -3281,12 +4031,14 @@ function setupControls() {
     }
   );
 
+
   window.addEventListener(
     "keyup",
     event => {
 
       const key =
         event.key.toLowerCase();
+
 
       if (
         key === "arrowleft" ||
@@ -3296,6 +4048,7 @@ function setupControls() {
         steerLeft = false;
       }
 
+
       if (
         key === "arrowright" ||
         key === "d"
@@ -3304,6 +4057,7 @@ function setupControls() {
         steerRight = false;
       }
 
+
       if (
         key === "arrowup" ||
         key === "w"
@@ -3311,6 +4065,7 @@ function setupControls() {
 
         gasPressed = false;
       }
+
 
       if (
         key === "arrowdown" ||
@@ -3326,9 +4081,6 @@ function setupControls() {
     }
   );
 
-  /* =====================================================
-     SAFETY: RELEASE GAS WHEN TAB LOSES FOCUS
-  ===================================================== */
 
   window.addEventListener(
     "blur",
@@ -3337,6 +4089,7 @@ function setupControls() {
       stopAllInput();
     }
   );
+
 
   document.addEventListener(
     "visibilitychange",
@@ -3352,6 +4105,7 @@ function setupControls() {
   );
 }
 
+
 /* =========================================================
    RESIZE
 ========================================================= */
@@ -3362,20 +4116,335 @@ function onResize() {
     !camera ||
     !renderer
   ) {
+
     return;
   }
+
 
   camera.aspect =
     window.innerWidth /
     window.innerHeight;
 
+
   camera.updateProjectionMatrix();
+
 
   renderer.setSize(
     window.innerWidth,
     window.innerHeight
   );
 }
+
+
+/* =========================================================
+   HUD
+========================================================= */
+
+function updateHUD() {
+
+  const speedElement =
+    document.getElementById(
+      "speed"
+    );
+
+  const distanceElement =
+    document.getElementById(
+      "distance"
+    );
+
+  const scoreElement =
+    document.getElementById(
+      "score"
+    );
+
+  const levelElement =
+    document.getElementById(
+      "level"
+    );
+
+  const bestScoreElement =
+    document.getElementById(
+      "bestScore"
+    );
+
+
+  if (
+    speedElement
+  ) {
+
+    speedElement.textContent =
+      Math.floor(
+        speed * 12
+      );
+  }
+
+
+  if (
+    distanceElement
+  ) {
+
+    distanceElement.textContent =
+      Math.floor(
+        distance
+      );
+  }
+
+
+  if (
+    scoreElement
+  ) {
+
+    scoreElement.textContent =
+      Math.floor(
+        score
+      );
+  }
+
+
+  if (
+    levelElement
+  ) {
+
+    levelElement.textContent =
+      currentMap;
+  }
+
+
+  if (
+    bestScoreElement
+  ) {
+
+    bestScoreElement.textContent =
+      Math.floor(
+        bestScore
+      );
+  }
+}
+
+
+/* =========================================================
+   LEVEL UPDATE
+========================================================= */
+
+function updateLevel() {
+
+  const newMap =
+    THREE.MathUtils.clamp(
+      Math.floor(
+        distance / 100
+      ) + 1,
+      1,
+      5
+    );
+
+
+  if (
+    newMap !==
+    currentMap
+  ) {
+
+    currentMap =
+      newMap;
+
+    level =
+      newMap;
+
+
+    resetEnemies();
+
+    applyMapVisuals();
+  }
+
+
+  checkUnlock();
+}
+
+
+/* =========================================================
+   UNLOCK
+========================================================= */
+
+function checkUnlock() {
+
+  let newUnlocked =
+    unlockedLevel;
+
+
+  if (
+    distance >= 100
+  ) {
+
+    newUnlocked =
+      Math.max(
+        newUnlocked,
+        2
+      );
+  }
+
+
+  if (
+    distance >= 200
+  ) {
+
+    newUnlocked =
+      Math.max(
+        newUnlocked,
+        3
+      );
+  }
+
+
+  if (
+    distance >= 300
+  ) {
+
+    newUnlocked =
+      Math.max(
+        newUnlocked,
+        4
+      );
+  }
+
+
+  if (
+    distance >= 400
+  ) {
+
+    newUnlocked =
+      Math.max(
+        newUnlocked,
+        5
+      );
+  }
+
+
+  if (
+    newUnlocked !==
+    unlockedLevel
+  ) {
+
+    unlockedLevel =
+      newUnlocked;
+
+
+    localStorage.setItem(
+      "lexaUnlockedLevel",
+      unlockedLevel
+    );
+  }
+}
+
+
+/* =========================================================
+   GAME OVER
+========================================================= */
+
+function endGame() {
+
+  if (
+    gameOverState
+  ) {
+
+    return;
+  }
+
+
+  gameOverState =
+    true;
+
+  speed =
+    0;
+
+
+  stopAllInput();
+
+
+  if (
+    score >
+    bestScore
+  ) {
+
+    bestScore =
+      Math.floor(
+        score
+      );
+
+
+    localStorage.setItem(
+      "lexaBestScore",
+      bestScore
+    );
+  }
+
+
+  const finalDistance =
+    document.getElementById(
+      "finalDistance"
+    );
+
+  const finalScore =
+    document.getElementById(
+      "finalScore"
+    );
+
+  const finalBestScore =
+    document.getElementById(
+      "finalBestScore"
+    );
+
+  const finalLevel =
+    document.getElementById(
+      "finalLevel"
+    );
+
+
+  if (
+    finalDistance
+  ) {
+
+    finalDistance.textContent =
+      `${Math.floor(
+        distance
+      )} m`;
+  }
+
+
+  if (
+    finalScore
+  ) {
+
+    finalScore.textContent =
+      Math.floor(
+        score
+      );
+  }
+
+
+  if (
+    finalBestScore
+  ) {
+
+    finalBestScore.textContent =
+      Math.floor(
+        bestScore
+      );
+  }
+
+
+  if (
+    finalLevel
+  ) {
+
+    finalLevel.textContent =
+      currentMap;
+  }
+
+
+  gameOver.classList.remove(
+    "hidden"
+  );
+}
+
 
 /* =========================================================
    GAME LOOP
@@ -3386,6 +4455,7 @@ function animate() {
   requestAnimationFrame(
     animate
   );
+
 
   updatePlayer();
 
@@ -3401,14 +4471,16 @@ function animate() {
 
   updateHUD();
 
+
   renderer.render(
     scene,
     camera
   );
 }
 
+
 /* =========================================================
-   START APPLICATION
+   START
 ========================================================= */
 
 setupControls();
