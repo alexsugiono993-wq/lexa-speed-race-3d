@@ -1,4147 +1,2295 @@
-import * as THREE from './three.module.js';
+import * as THREE from "./three.module.js";
 
 /* =========================================================
    LEXA SPEED RACE 3D
-   SMOOTH HIGHWAY EDITION
-   ---------------------------------------------------------
-   - Smooth continuous highway curve
-   - Smooth road markings
-   - Smooth shoulders
-   - Competitive AI traffic
-   - AI lane changing
-   - 5 maps
-   - Main menu
-   - Level select
-   - Score / Best Score
-   - Collision
-   - Mobile controls
-========================================================= */
-
-
-/* =========================================================
-   THREE CORE
+   COINS + CHECKPOINT + FINISH + VICTORY SYSTEM
 ========================================================= */
 
 let scene;
 let camera;
 let renderer;
-let car;
+let clock;
 
-let initialized = false;
+let player;
+let roadGroup;
+let environmentGroup;
+let enemyGroup;
+let coinGroup;
+let checkpointGroup;
+let finishGroup;
 
-let enemyCars = [];
-let roadObjects = [];
-let collisionParticles = [];
+let gameRunning = false;
+let gameWon = false;
+let gameOver = false;
 
-
-/* =========================================================
-   GAME STATE
-========================================================= */
-
-let speed = 0;
-let distance = 0;
-let score = 0;
-let level = 1;
-
-let bestScore =
-  Number(localStorage.getItem("lexaBestScore")) || 0;
-
-let unlockedLevel =
-  Number(localStorage.getItem("lexaUnlockedLevel")) || 1;
-
-unlockedLevel =
-  THREE.MathUtils.clamp(
-    unlockedLevel,
-    1,
-    5
-  );
-
+let currentLevel = 1;
 let selectedStartLevel = 1;
 
-let gameStarted = false;
-let gameOverState = false;
+let distance = 0;
+let levelDistance = 0;
+let score = 0;
 
-let currentMap = 1;
+let totalCoins = Number(localStorage.getItem("lexaTotalCoins") || 0);
 
+let speed = 0;
+let maxPlayerSpeed = 0.22;
+let acceleration = 0.006;
+let braking = 0.012;
+let friction = 0.003;
 
-/* =========================================================
-   PLAYER PHYSICS
-========================================================= */
-
-const MAX_SPEED = 13;
-
-const ACCELERATION = 0.22;
-const NATURAL_DECELERATION = 0.07;
-const BRAKE_POWER = 0.32;
-
-const STEER_ACCELERATION = 0.045;
-const STEER_MAX_SPEED = 0.30;
-const STEER_DECELERATION = 0.065;
-
-let steeringVelocity = 0;
-let playerRoadOffset = 0;
-
-
-/* =========================================================
-   WORLD
-========================================================= */
-
-const WORLD_LENGTH = 720;
-
-const ROAD_WIDTH = 12;
-
-const ROAD_SEGMENT_LENGTH = 12;
-
-const ROAD_LIMIT =
-  ROAD_WIDTH / 2 - 1.25;
-
-
-/* =========================================================
-   LANES
-========================================================= */
-
-const LANES = [
-  -3.2,
-  -1.1,
-  1.1,
-  3.2
-];
-
-
-/* =========================================================
-   WORLD SPEED
-========================================================= */
-
-const WORLD_SPEED_MULTIPLIER = 0.19;
-
-
-/* =========================================================
-   ENEMY DIFFICULTY
-========================================================= */
-
-const ENEMY_BASE_SPEED = [
-  0.075,
-  0.085,
-  0.095,
-  0.105,
-  0.115
-];
-
-const ENEMY_MAX_SPEED = [
-  0.17,
-  0.20,
-  0.23,
-  0.27,
-  0.31
-];
-
-const ENEMY_COUNT_BY_LEVEL = [
-  4,
-  4,
-  5,
-  5,
-  6
-];
-
-
-/* =========================================================
-   INPUT
-========================================================= */
-
-let steerLeft = false;
-let steerRight = false;
+let playerX = 0;
+let steering = 0;
 
 let gasPressed = false;
 let brakePressed = false;
+let leftPressed = false;
+let rightPressed = false;
 
+let lastTime = 0;
+
+const WORLD_LENGTH = 1200;
+const ROAD_SEGMENT_LENGTH = 12;
+const ROAD_WIDTH = 14;
+
+const LEVEL_DISTANCE = 500;
+const CHECKPOINT_DISTANCE = 250;
+
+const roadSegments = [];
+const roadObjects = [];
+const enemies = [];
+const coins = [];
+
+let checkpointPassed = false;
+let checkpointMesh = null;
+let finishMesh = null;
+
+const tempVector = new THREE.Vector3();
+
+/* =========================================================
+   MAP DATA
+========================================================= */
+
+const MAPS = {
+  1: {
+    name: "GREEN VALLEY",
+    description: "Jalan hijau dengan pepohonan",
+    sky: 0x87ceeb,
+    road: 0x292929,
+    shoulder: 0x777777,
+    grass: 0x3d8b3d,
+    curveStrength: 1.0
+  },
+
+  2: {
+    name: "FOREST ROAD",
+    description: "Hutan lebat dengan tikungan",
+    sky: 0x76a5af,
+    road: 0x252525,
+    shoulder: 0x666666,
+    grass: 0x285c2b,
+    curveStrength: 1.25
+  },
+
+  3: {
+    name: "MOUNTAIN ROAD",
+    description: "Jalan pegunungan berkelok",
+    sky: 0x9bb7d4,
+    road: 0x292929,
+    shoulder: 0x777777,
+    grass: 0x496b45,
+    curveStrength: 1.5
+  },
+
+  4: {
+    name: "DESERT HIGHWAY",
+    description: "Highway panjang di padang pasir",
+    sky: 0xe9c78a,
+    road: 0x303030,
+    shoulder: 0x8b806d,
+    grass: 0xb99a5c,
+    curveStrength: 1.15
+  },
+
+  5: {
+    name: "NIGHT CITY",
+    description: "Highway kota pada malam hari",
+    sky: 0x101522,
+    road: 0x202020,
+    shoulder: 0x4b4b4b,
+    grass: 0x181c24,
+    curveStrength: 1.35
+  }
+};
+
+/* =========================================================
+   INIT
+========================================================= */
+
+init();
+
+function init() {
+  setupRenderer();
+  setupScene();
+  setupCamera();
+  setupLights();
+
+  createWorld();
+  createPlayer();
+  createEnemies();
+  createCoins();
+  createCheckpoint();
+  createFinishLine();
+
+  setupControls();
+  updateHUD();
+
+  clock = new THREE.Clock();
+
+  window.addEventListener("resize", onResize);
+
+  animate();
+
+  // Hilangkan layar LOADING setelah game siap
+  const loading = document.getElementById("loading");
+
+  if (loading) {
+    loading.style.display = "none";
+  }
+
+  // Tampilkan menu utama
+  showMenu();
+}
+
+/* =========================================================
+   RENDERER
+========================================================= */
+
+function setupRenderer() {
+  renderer = new THREE.WebGLRenderer({
+    antialias: true
+  });
+
+  renderer.setPixelRatio(
+    Math.min(window.devicePixelRatio || 1, 1.5)
+  );
+
+  renderer.setSize(window.innerWidth, window.innerHeight);
+
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+  document.body.appendChild(renderer.domElement);
+}
+
+/* =========================================================
+   SCENE
+========================================================= */
+
+function setupScene() {
+  scene = new THREE.Scene();
+  scene.background = new THREE.Color(MAPS[1].sky);
+
+  scene.fog = new THREE.Fog(
+    MAPS[1].sky,
+    90,
+    500
+  );
+}
 
 /* =========================================================
    CAMERA
 ========================================================= */
 
-let cameraShakeTime = 0;
-
-const CAMERA_SHAKE_DURATION = 0.5;
-
-
-/* =========================================================
-   ENEMY COLORS
-========================================================= */
-
-const enemyColors = [
-  0x1565c0,
-  0xff9800,
-  0x7b1fa2,
-  0x212121,
-  0x00897b,
-  0xc62828
-];
-
-
-/* =========================================================
-   MAPS
-========================================================= */
-
-const MAPS = {
-
-  1: {
-    name: "GREEN VALLEY",
-    sky: 0x87ceeb,
-    ground: 0x3f963f,
-    shoulder: 0x6fa84a,
-    road: 0x292929,
-    edge: 0xffd600,
-
-    curveStrength: 1.0,
-
-    curveFrequency: 1.0
-  },
-
-  2: {
-    name: "FOREST ROAD",
-    sky: 0x78b7d0,
-    ground: 0x285c35,
-    shoulder: 0x4f7f4a,
-    road: 0x252525,
-    edge: 0xffc107,
-
-    curveStrength: 1.25,
-
-    curveFrequency: 0.95
-  },
-
-  3: {
-    name: "MOUNTAIN ROAD",
-    sky: 0x9ec8e8,
-    ground: 0x65735c,
-    shoulder: 0x858585,
-    road: 0x303030,
-    edge: 0xffffff,
-
-    curveStrength: 1.55,
-
-    curveFrequency: 0.85
-  },
-
-  4: {
-    name: "DESERT HIGHWAY",
-    sky: 0xe8b77d,
-    ground: 0xc99b5b,
-    shoulder: 0xb47c42,
-    road: 0x343434,
-    edge: 0xffe082,
-
-    curveStrength: 1.1,
-
-    curveFrequency: 0.9
-  },
-
-  5: {
-    name: "NIGHT CITY",
-    sky: 0x07152d,
-    ground: 0x151b20,
-    shoulder: 0x252a2f,
-    road: 0x191919,
-    edge: 0x00e5ff,
-
-    curveStrength: 1.35,
-
-    curveFrequency: 0.9
-  }
-};
-
-
-/* =========================================================
-   DOM
-========================================================= */
-
-const mainMenu =
-  document.getElementById("mainMenu");
-
-const levelMenu =
-  document.getElementById("levelMenu");
-
-const gameElement =
-  document.getElementById("game");
-
-const playButton =
-  document.getElementById("playButton");
-
-const levelButton =
-  document.getElementById("levelButton");
-
-const backMenuButton =
-  document.getElementById("backMenuButton");
-
-const levelList =
-  document.getElementById("levelList");
-
-const menuUnlockedLevel =
-  document.getElementById("menuUnlockedLevel");
-
-const restartButton =
-  document.getElementById("restartButton");
-
-const menuButton =
-  document.getElementById("menuButton");
-
-const loading =
-  document.getElementById("loading");
-
-const gameOver =
-  document.getElementById("gameOver");
-
-const levelNotification =
-  document.getElementById("levelNotification");
-
-const levelNumber =
-  document.getElementById("levelNumber");
-
-const levelName =
-  document.getElementById("levelName");
-
-
-/* =========================================================
-   SMOOTH HIGHWAY SYSTEM
-========================================================= */
-
-/*
-   Penting:
-
-   Sistem lama menggunakan beberapa gelombang sinus pendek
-   yang membuat arah jalan berubah terlalu cepat.
-
-   Sekarang kita menggunakan kombinasi kurva panjang
-   dengan easing sehingga perubahan arah lebih lembut.
-*/
-
-
-function smoothWave(
-  value
-) {
-
-  return (
-    Math.sin(value) *
-    0.5 +
-    Math.sin(value * 0.47 + 1.7) *
-    0.30 +
-    Math.sin(value * 0.23 + 3.1) *
-    0.20
+function setupCamera() {
+  camera = new THREE.PerspectiveCamera(
+    65,
+    window.innerWidth / window.innerHeight,
+    0.1,
+    1500
   );
+
+  camera.position.set(0, 6, 14);
 }
 
-
-function getRoadCurve(
-  z
-) {
-
-  const map =
-    MAPS[currentMap];
-
-  const depth =
-    Math.abs(z);
-
-  const normalized =
-    depth /
-    WORLD_LENGTH;
-
-  /*
-     Kurva utama sangat panjang.
-     Tidak ada perubahan arah tajam.
-  */
-
-  const longWave =
-    Math.sin(
-      normalized *
-      Math.PI *
-      2.2 +
-      0.7
-    ) *
-    3.8;
-
-  const mediumWave =
-    Math.sin(
-      normalized *
-      Math.PI *
-      4.0 +
-      2.0
-    ) *
-    1.45;
-
-  const gentleWave =
-    Math.sin(
-      normalized *
-      Math.PI *
-      7.0 +
-      1.0
-    ) *
-    0.45;
-
-  /*
-     Semakin jauh, kurva tetap halus.
-  */
-
-  return (
-    (
-      longWave +
-      mediumWave +
-      gentleWave
-    ) *
-    map.curveStrength
-  );
-}
-
-
 /* =========================================================
-   ROAD SLOPE / DIRECTION
+   LIGHT
 ========================================================= */
 
-function getRoadDirection(
-  z
-) {
-
-  /*
-     Gunakan beberapa sample dekat.
-     Ini membuat arah jalan dihitung dari kurva,
-     bukan dari patahan antarsegmen.
-  */
-
-  const sample =
-    0.5;
-
-  const x1 =
-    getRoadCurve(
-      z - sample
-    );
-
-  const x2 =
-    getRoadCurve(
-      z + sample
-    );
-
-  return Math.atan2(
-    x1 - x2,
-    sample * 2
+function setupLights() {
+  const ambient = new THREE.HemisphereLight(
+    0xffffff,
+    0x444444,
+    1.2
   );
+
+  scene.add(ambient);
+
+  const sun = new THREE.DirectionalLight(
+    0xffffff,
+    1.5
+  );
+
+  sun.position.set(40, 80, 30);
+
+  sun.castShadow = true;
+
+  sun.shadow.mapSize.width = 1024;
+  sun.shadow.mapSize.height = 1024;
+
+  scene.add(sun);
 }
-
-
-/* =========================================================
-   ROAD HEIGHT
-========================================================= */
-
-function getRoadHeight(
-  z
-) {
-
-  /*
-     Sedikit undakan alami untuk membuat jalan
-     tidak terasa seperti papan datar.
-
-     Amplitudo sengaja sangat kecil supaya nyaman.
-  */
-
-  const depth =
-    Math.abs(z);
-
-  const normalized =
-    depth /
-    WORLD_LENGTH;
-
-  return (
-    Math.sin(
-      normalized *
-      Math.PI *
-      2.5
-    ) *
-    0.10
-  );
-}
-
-
-/* =========================================================
-   MENU
-========================================================= */
-
-function updateMenu() {
-
-  unlockedLevel =
-    Number(
-      localStorage.getItem(
-        "lexaUnlockedLevel"
-      )
-    ) || 1;
-
-  unlockedLevel =
-    THREE.MathUtils.clamp(
-      unlockedLevel,
-      1,
-      5
-    );
-
-  if (
-    menuUnlockedLevel
-  ) {
-
-    menuUnlockedLevel.textContent =
-      unlockedLevel;
-  }
-
-  renderLevelList();
-}
-
-
-/* =========================================================
-   LEVEL SELECT
-========================================================= */
-
-function renderLevelList() {
-
-  if (
-    !levelList
-  ) {
-
-    return;
-  }
-
-  levelList.innerHTML = "";
-
-  const descriptions = {
-
-    1: "Green Valley",
-
-    2: "Forest Road",
-
-    3: "Mountain Road",
-
-    4: "Desert Highway",
-
-    5: "Night City"
-  };
-
-  for (
-    let i = 1;
-    i <= 5;
-    i++
-  ) {
-
-    const unlocked =
-      i <= unlockedLevel;
-
-    const card =
-      document.createElement(
-        "button"
-      );
-
-    card.className =
-      "level-card" +
-      (
-        unlocked
-          ? ""
-          : " locked"
-      );
-
-    card.innerHTML = `
-      <div class="level-number">
-        ${i}
-      </div>
-
-      <div class="level-info">
-
-        <div class="level-name">
-          ${MAPS[i].name}
-        </div>
-
-        <div class="level-description">
-          ${descriptions[i]}
-          ${
-            unlocked
-              ? ""
-              : " • Selesaikan level sebelumnya"
-          }
-        </div>
-
-      </div>
-
-      <div class="level-status">
-        ${unlocked ? "▶" : "🔒"}
-      </div>
-    `;
-
-    if (
-      unlocked
-    ) {
-
-      card.addEventListener(
-        "click",
-        () => {
-
-          selectedStartLevel =
-            i;
-
-          startGame(i);
-        }
-      );
-    }
-
-    levelList.appendChild(
-      card
-    );
-  }
-}
-
-
-/* =========================================================
-   SHOW MAIN MENU
-========================================================= */
-
-function showMainMenu() {
-
-  gameStarted = false;
-
-  gameOverState = false;
-
-  stopAllInput();
-
-  mainMenu.classList.remove(
-    "hidden"
-  );
-
-  levelMenu.classList.add(
-    "hidden"
-  );
-
-  gameElement.classList.add(
-    "hidden"
-  );
-
-  gameOver.classList.add(
-    "hidden"
-  );
-
-  levelNotification.classList.add(
-    "hidden"
-  );
-
-  updateMenu();
-}
-
-
-/* =========================================================
-   LEVEL MENU
-========================================================= */
-
-function showLevelMenu() {
-
-  mainMenu.classList.add(
-    "hidden"
-  );
-
-  levelMenu.classList.remove(
-    "hidden"
-  );
-
-  updateMenu();
-}
-
-
-/* =========================================================
-   MENU EVENTS
-========================================================= */
-
-playButton.addEventListener(
-  "click",
-  () => {
-
-    selectedStartLevel = 1;
-
-    startGame(1);
-  }
-);
-
-
-levelButton.addEventListener(
-  "click",
-  () => {
-
-    showLevelMenu();
-  }
-);
-
-
-backMenuButton.addEventListener(
-  "click",
-  () => {
-
-    showMainMenu();
-  }
-);
-
-
-menuButton.addEventListener(
-  "click",
-  () => {
-
-    showMainMenu();
-  }
-);
-
-
-restartButton.addEventListener(
-  "click",
-  () => {
-
-    startGame(
-      selectedStartLevel
-    );
-  }
-);
-
-
-/* =========================================================
-   THREE INITIALIZATION
-========================================================= */
-
-function initThree() {
-
-  if (
-    initialized
-  ) {
-
-    return;
-  }
-
-  initialized = true;
-
-  scene =
-    new THREE.Scene();
-
-  camera =
-    new THREE.PerspectiveCamera(
-      65,
-      window.innerWidth /
-        window.innerHeight,
-      0.1,
-      2000
-    );
-
-  camera.position.set(
-    0,
-    5,
-    9
-  );
-
-  renderer =
-    new THREE.WebGLRenderer({
-      antialias: true
-    });
-
-  renderer.setSize(
-    window.innerWidth,
-    window.innerHeight
-  );
-
-  renderer.setPixelRatio(
-    Math.min(
-      window.devicePixelRatio || 1,
-      2
-    )
-  );
-
-  renderer.shadowMap.enabled =
-    true;
-
-  gameElement.appendChild(
-    renderer.domElement
-  );
-
-  window.addEventListener(
-    "resize",
-    onResize
-  );
-
-  createLights();
-
-  createPlayerCar();
-
-  createWorld();
-
-  createEnemies();
-
-  applyMapVisuals();
-
-  animate();
-}
-
-
-/* =========================================================
-   LIGHTING
-========================================================= */
-
-function createLights() {
-
-  const ambient =
-    new THREE.AmbientLight(
-      0xffffff,
-      0.7
-    );
-
-  scene.add(
-    ambient
-  );
-
-  const sun =
-    new THREE.DirectionalLight(
-      0xffffff,
-      1.15
-    );
-
-  sun.position.set(
-    40,
-    80,
-    20
-  );
-
-  sun.castShadow =
-    true;
-
-  scene.add(
-    sun
-  );
-}
-
-
-/* =========================================================
-   PLAYER CAR
-========================================================= */
-
-function createPlayerCar() {
-
-  car =
-    new THREE.Group();
-
-  const bodyMaterial =
-    new THREE.MeshStandardMaterial({
-      color: 0xd71920,
-      roughness: 0.32,
-      metalness: 0.45
-    });
-
-  const blackMaterial =
-    new THREE.MeshStandardMaterial({
-      color: 0x090909,
-      roughness: 0.55,
-      metalness: 0.2
-    });
-
-  const glassMaterial =
-    new THREE.MeshStandardMaterial({
-      color: 0x00bcd4,
-      roughness: 0.1,
-      metalness: 0.2,
-      transparent: true,
-      opacity: 0.72
-    });
-
-  const whiteMaterial =
-    new THREE.MeshStandardMaterial({
-      color: 0xffffff,
-      roughness: 0.25
-    });
-
-
-  /* BODY */
-
-  const body =
-    new THREE.Mesh(
-      new THREE.BoxGeometry(
-        2.4,
-        0.55,
-        4.3
-      ),
-      bodyMaterial
-    );
-
-  body.position.y =
-    0.65;
-
-  body.castShadow =
-    true;
-
-  car.add(body);
-
-
-  /* NOSE */
-
-  const nose =
-    new THREE.Mesh(
-      new THREE.BoxGeometry(
-        2.15,
-        0.3,
-        1.0
-      ),
-      bodyMaterial
-    );
-
-  nose.position.set(
-    0,
-    0.88,
-    -1.8
-  );
-
-  car.add(nose);
-
-
-  /* CABIN */
-
-  const cabin =
-    new THREE.Mesh(
-      new THREE.BoxGeometry(
-        1.65,
-        0.6,
-        1.8
-      ),
-      blackMaterial
-    );
-
-  cabin.position.set(
-    0,
-    1.08,
-    0.25
-  );
-
-  car.add(cabin);
-
-
-  /* WINDSHIELD */
-
-  const windshield =
-    new THREE.Mesh(
-      new THREE.BoxGeometry(
-        1.5,
-        0.48,
-        0.06
-      ),
-      glassMaterial
-    );
-
-  windshield.position.set(
-    0,
-    1.13,
-    -0.68
-  );
-
-  windshield.rotation.x =
-    THREE.MathUtils.degToRad(
-      -15
-    );
-
-  car.add(
-    windshield
-  );
-
-
-  /* REAR GLASS */
-
-  const rearGlass =
-    new THREE.Mesh(
-      new THREE.BoxGeometry(
-        1.5,
-        0.45,
-        0.06
-      ),
-      glassMaterial
-    );
-
-  rearGlass.position.set(
-    0,
-    1.13,
-    1.12
-  );
-
-  rearGlass.rotation.x =
-    THREE.MathUtils.degToRad(
-      15
-    );
-
-  car.add(
-    rearGlass
-  );
-
-
-  /* CENTER STRIPE */
-
-  const stripe =
-    new THREE.Mesh(
-      new THREE.BoxGeometry(
-        0.28,
-        0.03,
-        3.8
-      ),
-      whiteMaterial
-    );
-
-  stripe.position.set(
-    0,
-    0.94,
-    -0.05
-  );
-
-  car.add(stripe);
-
-
-  /* SPOILER */
-
-  const spoilerBar =
-    new THREE.Mesh(
-      new THREE.BoxGeometry(
-        2.2,
-        0.15,
-        0.2
-      ),
-      blackMaterial
-    );
-
-  spoilerBar.position.set(
-    0,
-    1.25,
-    1.9
-  );
-
-  car.add(
-    spoilerBar
-  );
-
-
-  const spoilerLeft =
-    new THREE.Mesh(
-      new THREE.BoxGeometry(
-        0.15,
-        0.55,
-        0.15
-      ),
-      blackMaterial
-    );
-
-  spoilerLeft.position.set(
-    -0.8,
-    1.0,
-    1.9
-  );
-
-  car.add(
-    spoilerLeft
-  );
-
-
-  const spoilerRight =
-    spoilerLeft.clone();
-
-  spoilerRight.position.x =
-    0.8;
-
-  car.add(
-    spoilerRight
-  );
-
-
-  /* HEADLIGHTS */
-
-  const headlightMaterial =
-    new THREE.MeshStandardMaterial({
-      color: 0xffffff,
-      emissive: 0xffffff,
-      emissiveIntensity: 2
-    });
-
-  [
-    -0.75,
-    0.75
-  ].forEach(
-    x => {
-
-      const light =
-        new THREE.Mesh(
-          new THREE.BoxGeometry(
-            0.42,
-            0.18,
-            0.08
-          ),
-          headlightMaterial
-        );
-
-      light.position.set(
-        x,
-        0.88,
-        -2.18
-      );
-
-      car.add(
-        light
-      );
-    }
-  );
-
-
-  /* SIDE SKIRTS */
-
-  [
-    -1.22,
-    1.22
-  ].forEach(
-    x => {
-
-      const skirt =
-        new THREE.Mesh(
-          new THREE.BoxGeometry(
-            0.12,
-            0.25,
-            3.4
-          ),
-          blackMaterial
-        );
-
-      skirt.position.set(
-        x,
-        0.48,
-        0
-      );
-
-      car.add(
-        skirt
-      );
-    }
-  );
-
-
-  /* WHEELS */
-
-  const wheelMaterial =
-    new THREE.MeshStandardMaterial({
-      color: 0x080808,
-      roughness: 0.7
-    });
-
-  const rimMaterial =
-    new THREE.MeshStandardMaterial({
-      color: 0xbdbdbd,
-      metalness: 0.8,
-      roughness: 0.2
-    });
-
-  const wheelPositions = [
-    [-1.15, 0.42, -1.35],
-    [1.15, 0.42, -1.35],
-    [-1.15, 0.42, 1.35],
-    [1.15, 0.42, 1.35]
-  ];
-
-  wheelPositions.forEach(
-    pos => {
-
-      const wheel =
-        new THREE.Mesh(
-          new THREE.CylinderGeometry(
-            0.42,
-            0.42,
-            0.28,
-            20
-          ),
-          wheelMaterial
-        );
-
-      wheel.rotation.z =
-        Math.PI / 2;
-
-      wheel.position.set(
-        pos[0],
-        pos[1],
-        pos[2]
-      );
-
-      wheel.castShadow =
-        true;
-
-      car.add(
-        wheel
-      );
-
-
-      const rim =
-        new THREE.Mesh(
-          new THREE.CylinderGeometry(
-            0.19,
-            0.19,
-            0.3,
-            16
-          ),
-          rimMaterial
-        );
-
-      rim.rotation.z =
-        Math.PI / 2;
-
-      rim.position.set(
-        pos[0],
-        pos[1],
-        pos[2]
-      );
-
-      car.add(
-        rim
-      );
-    }
-  );
-
-
-  car.position.set(
-    0,
-    0,
-    5
-  );
-
-  scene.add(
-    car
-  );
-}
-
 
 /* =========================================================
    WORLD
 ========================================================= */
 
 function createWorld() {
+  roadGroup = new THREE.Group();
+  environmentGroup = new THREE.Group();
+  enemyGroup = new THREE.Group();
+  coinGroup = new THREE.Group();
+  checkpointGroup = new THREE.Group();
+  finishGroup = new THREE.Group();
 
-  const ground =
-    new THREE.Mesh(
-      new THREE.PlaneGeometry(
-        1000,
-        2000
-      ),
-      new THREE.MeshStandardMaterial({
-        color:
-          MAPS[1].ground
-      })
-    );
+  scene.add(roadGroup);
+  scene.add(environmentGroup);
+  scene.add(enemyGroup);
+  scene.add(coinGroup);
+  scene.add(checkpointGroup);
+  scene.add(finishGroup);
 
-  ground.rotation.x =
-    -Math.PI / 2;
-
-  ground.position.z =
-    -WORLD_LENGTH / 2;
-
-  ground.receiveShadow =
-    true;
-
-  ground.userData.isGround =
-    true;
-
-  scene.add(
-    ground
-  );
-
-
-  /*
-     ROAD SEGMENTS
-
-     Segmen masih digunakan untuk render,
-     tetapi posisi dan arah setiap segmen
-     sekarang mengikuti kurva kontinu.
-
-     Karena panjang segmen diperkecil,
-     sambungan menjadi jauh lebih halus.
-  */
-
-  for (
-    let z = 0;
-    z > -WORLD_LENGTH;
-    z -= ROAD_SEGMENT_LENGTH
-  ) {
-
-    createRoadSegment(z);
-  }
-
-
+  createRoad();
   createEnvironment();
 }
 
-
 /* =========================================================
-   ROAD OBJECT REGISTER
+   ROAD CURVE
 ========================================================= */
 
-function registerRoadObject(
-  object,
-  roadZ,
-  roadOffset = 0,
-  roadY = 0,
-  rotateWithRoad = true
-) {
+function getRoadCurve(z) {
+  const normalized =
+    ((Math.abs(z) % WORLD_LENGTH) / WORLD_LENGTH);
 
-  object.userData.roadZ =
-    roadZ;
+  const map = MAPS[currentLevel];
 
-  object.userData.roadOffset =
-    roadOffset;
+  const longWave =
+    Math.sin(normalized * Math.PI * 2.2 + 0.7) * 3.8;
 
-  object.userData.roadY =
-    roadY;
+  const mediumWave =
+    Math.sin(normalized * Math.PI * 4.0 + 2.0) * 1.45;
 
-  object.userData.rotateWithRoad =
-    rotateWithRoad;
+  const gentleWave =
+    Math.sin(normalized * Math.PI * 7.0 + 1.0) * 0.45;
 
-  object.userData.baseRotationY =
-    object.rotation.y;
+  return (
+    longWave +
+    mediumWave +
+    gentleWave
+  ) * map.curveStrength;
+}
 
-  roadObjects.push(
-    object
-  );
+function getRoadDirection(z) {
+  const sample = 0.5;
 
-  scene.add(
-    object
-  );
+  const x1 = getRoadCurve(z - sample);
+  const x2 = getRoadCurve(z + sample);
 
-  updateRoadObjectTransform(
-    object
+  return Math.atan2(
+    x2 - x1,
+    sample * 2
   );
 }
 
+function getRoadHeight(z) {
+  return (
+    Math.sin(z * 0.018) * 0.08 +
+    Math.sin(z * 0.006) * 0.05
+  );
+}
 
 /* =========================================================
-   ROAD TRANSFORM
+   ROAD
 ========================================================= */
 
-function updateRoadObjectTransform(
-  object
-) {
-
-  const roadZ =
-    object.userData.roadZ;
-
-  const offset =
-    object.userData.roadOffset ||
-    0;
-
-  const roadX =
-    getRoadCurve(
-      roadZ
-    );
-
-  const roadY =
-    getRoadHeight(
-      roadZ
-    );
-
-  object.position.x =
-    roadX +
-    offset;
-
-  object.position.z =
-    roadZ;
-
-  object.position.y =
-    roadY +
-    (
-      object.userData.roadY ||
-      0
-    );
-
-
-  if (
-    object.userData.rotateWithRoad
+function createRoad() {
+  for (
+    let z = -WORLD_LENGTH / 2;
+    z < WORLD_LENGTH / 2;
+    z += ROAD_SEGMENT_LENGTH
   ) {
-
-    const angle =
-      getRoadDirection(
-        roadZ
-      );
-
-    object.rotation.y =
-      angle +
-      object.userData.baseRotationY;
+    createRoadSegment(z);
   }
 }
 
+function createRoadSegment(z) {
+  const group = new THREE.Group();
 
-/* =========================================================
-   SMOOTH ROAD SEGMENT
-========================================================= */
+  const roadMaterial = new THREE.MeshStandardMaterial({
+    color: MAPS[1].road,
+    roughness: 0.9
+  });
 
-function createRoadSegment(
-  z
-) {
-
-  const map =
-    MAPS[currentMap];
-
-
-  /* =====================================================
-     ROAD
-  ===================================================== */
-
-  const road =
-    new THREE.Mesh(
-      new THREE.BoxGeometry(
-        ROAD_WIDTH,
-        0.15,
-        ROAD_SEGMENT_LENGTH +
-          0.25
-      ),
-      new THREE.MeshStandardMaterial({
-        color:
-          map.road,
-
-        roughness:
-          0.92,
-
-        metalness:
-          0.05
-      })
-    );
-
-  road.userData.roadType =
-    "road";
-
-  registerRoadObject(
-    road,
-    z,
-    0,
-    -0.05,
-    true
+  const road = new THREE.Mesh(
+    new THREE.BoxGeometry(
+      ROAD_WIDTH,
+      0.22,
+      ROAD_SEGMENT_LENGTH + 0.4
+    ),
+    roadMaterial
   );
 
-  road.receiveShadow =
-    true;
+  road.receiveShadow = true;
 
+  group.add(road);
 
-  /* =====================================================
-     CENTER MARKING
-  ===================================================== */
+  /* CENTER MARK */
 
-  const centerDash =
-    new THREE.Mesh(
-      new THREE.BoxGeometry(
-        0.18,
-        0.04,
-        6.2
-      ),
-      new THREE.MeshStandardMaterial({
-        color:
-          0xf5f5f5,
-
-        roughness:
-          0.35
-      })
-    );
-
-  centerDash.userData.roadType =
-    "centerDash";
-
-  registerRoadObject(
-    centerDash,
-    z,
-    0,
-    0.055,
-    true
+  const centerMark = new THREE.Mesh(
+    new THREE.BoxGeometry(
+      0.18,
+      0.03,
+      6.2
+    ),
+    new THREE.MeshStandardMaterial({
+      color: 0xffffff
+    })
   );
 
+  centerMark.position.y = 0.14;
 
-  /* =====================================================
-     LEFT LANE MARKING
-  ===================================================== */
+  group.add(centerMark);
 
-  const leftLane =
-    new THREE.Mesh(
-      new THREE.BoxGeometry(
-        0.09,
-        0.025,
-        5.0
-      ),
-      new THREE.MeshStandardMaterial({
-        color:
-          0xd9d9d9,
+  /* LANE MARKINGS */
 
-        roughness:
-          0.4
-      })
-    );
-
-  leftLane.userData.roadType =
-    "laneDash";
-
-  registerRoadObject(
-    leftLane,
-    z,
-    -2.15,
-    0.045,
-    true
+  const laneLeft = new THREE.Mesh(
+    new THREE.BoxGeometry(
+      0.10,
+      0.025,
+      5
+    ),
+    new THREE.MeshStandardMaterial({
+      color: 0xffffff
+    })
   );
 
-
-  /* =====================================================
-     RIGHT LANE MARKING
-  ===================================================== */
-
-  const rightLane =
-    new THREE.Mesh(
-      new THREE.BoxGeometry(
-        0.09,
-        0.025,
-        5.0
-      ),
-      new THREE.MeshStandardMaterial({
-        color:
-          0xd9d9d9,
-
-        roughness:
-          0.4
-      })
-    );
-
-  rightLane.userData.roadType =
-    "laneDash";
-
-  registerRoadObject(
-    rightLane,
-    z,
-    2.15,
-    0.045,
-    true
+  laneLeft.position.set(
+    -ROAD_WIDTH * 0.25,
+    0.14,
+    0
   );
 
+  group.add(laneLeft);
 
-  /* =====================================================
-     ROAD EDGES
-  ===================================================== */
+  const laneRight = laneLeft.clone();
 
-  [
-    -1,
-    1
-  ].forEach(
-    side => {
+  laneRight.position.x =
+    ROAD_WIDTH * 0.25;
 
-      const edge =
-        new THREE.Mesh(
-          new THREE.BoxGeometry(
-            0.20,
-            0.055,
-            ROAD_SEGMENT_LENGTH
-          ),
-          new THREE.MeshStandardMaterial({
-            color:
-              map.edge,
+  group.add(laneRight);
 
-            emissive:
-              currentMap === 5
-                ? map.edge
-                : 0x000000,
+  /* EDGE LINES */
 
-            emissiveIntensity:
-              currentMap === 5
-                ? 1.2
-                : 0
-          })
-        );
+  const edgeMaterial =
+    new THREE.MeshStandardMaterial({
+      color: 0xf5f5f5
+    });
 
-      edge.userData.roadType =
-        "edge";
-
-      registerRoadObject(
-        edge,
-        z,
-        side *
-        (
-          ROAD_WIDTH / 2 -
-          0.15
-        ),
-        0.055,
-        true
-      );
-    }
+  const edgeLeft = new THREE.Mesh(
+    new THREE.BoxGeometry(
+      0.18,
+      0.03,
+      ROAD_SEGMENT_LENGTH
+    ),
+    edgeMaterial
   );
 
-
-  /* =====================================================
-     SHOULDER
-  ===================================================== */
-
-  [
-    -1,
-    1
-  ].forEach(
-    side => {
-
-      const shoulder =
-        new THREE.Mesh(
-          new THREE.BoxGeometry(
-            2.4,
-            0.10,
-            ROAD_SEGMENT_LENGTH
-          ),
-          new THREE.MeshStandardMaterial({
-            color:
-              map.shoulder,
-
-            roughness:
-              1
-          })
-        );
-
-      shoulder.userData.roadType =
-        "shoulder";
-
-      registerRoadObject(
-        shoulder,
-        z,
-        side *
-        (
-          ROAD_WIDTH / 2 +
-          1.25
-        ),
-        -0.02,
-        true
-      );
-    }
+  edgeLeft.position.set(
+    -ROAD_WIDTH / 2 + 0.25,
+    0.14,
+    0
   );
+
+  group.add(edgeLeft);
+
+  const edgeRight = edgeLeft.clone();
+
+  edgeRight.position.x =
+    ROAD_WIDTH / 2 - 0.25;
+
+  group.add(edgeRight);
+
+  /* SHOULDER */
+
+  const shoulderMaterial =
+    new THREE.MeshStandardMaterial({
+      color: MAPS[1].shoulder
+    });
+
+  const shoulderLeft = new THREE.Mesh(
+    new THREE.BoxGeometry(
+      1.5,
+      0.16,
+      ROAD_SEGMENT_LENGTH
+    ),
+    shoulderMaterial
+  );
+
+  shoulderLeft.position.set(
+    -ROAD_WIDTH / 2 - 0.8,
+    -0.02,
+    0
+  );
+
+  group.add(shoulderLeft);
+
+  const shoulderRight =
+    shoulderLeft.clone();
+
+  shoulderRight.position.x =
+    ROAD_WIDTH / 2 + 0.8;
+
+  group.add(shoulderRight);
+
+  updateRoadObjectTransform(
+    group,
+    z
+  );
+
+  roadGroup.add(group);
+
+  roadSegments.push({
+    group,
+    z
+  });
+
+  roadObjects.push(group);
 }
 
+function updateRoadObjectTransform(
+  object,
+  z
+) {
+  object.position.x =
+    getRoadCurve(z);
+
+  object.position.y =
+    getRoadHeight(z);
+
+  object.position.z = z;
+
+  object.rotation.y =
+    getRoadDirection(z);
+}
 
 /* =========================================================
    ENVIRONMENT
 ========================================================= */
 
 function createEnvironment() {
+  const map = MAPS[1];
+
+  /* GRASS */
+
+  const grassMaterial =
+    new THREE.MeshStandardMaterial({
+      color: map.grass
+    });
+
+  const grass = new THREE.Mesh(
+    new THREE.PlaneGeometry(
+      260,
+      WORLD_LENGTH
+    ),
+    grassMaterial
+  );
+
+  grass.rotation.x =
+    -Math.PI / 2;
+
+  grass.position.y = -0.2;
+
+  environmentGroup.add(grass);
 
   /* TREES */
 
-  for (
-    let i = 0;
-    i < 120;
-    i++
-  ) {
-
+  for (let i = 0; i < 120; i++) {
     const z =
-      -20 -
-      Math.random() *
-      (
-        WORLD_LENGTH -
-        30
-      );
+      -WORLD_LENGTH / 2 +
+      Math.random() * WORLD_LENGTH;
 
     const side =
-      Math.random() <
-      0.5
+      Math.random() < 0.5
         ? -1
         : 1;
 
-    const offset =
-      side *
-      (
-        ROAD_WIDTH / 2 +
-        5 +
-        Math.random() *
-        20
-      );
+    const roadX =
+      getRoadCurve(z);
 
-    createTree(
-      z,
-      offset
+    const tree = createTree();
+
+    tree.position.set(
+      roadX +
+        side *
+          (ROAD_WIDTH / 2 +
+            7 +
+            Math.random() * 25),
+      0,
+      z
     );
-  }
 
+    environmentGroup.add(tree);
+  }
 
   /* BUSHES */
 
-  for (
-    let i = 0;
-    i < 160;
-    i++
-  ) {
-
+  for (let i = 0; i < 160; i++) {
     const z =
-      -20 -
-      Math.random() *
-      (
-        WORLD_LENGTH -
-        30
-      );
+      -WORLD_LENGTH / 2 +
+      Math.random() * WORLD_LENGTH;
 
     const side =
-      Math.random() <
-      0.5
+      Math.random() < 0.5
         ? -1
         : 1;
 
-    const offset =
-      side *
-      (
-        ROAD_WIDTH / 2 +
-        3 +
-        Math.random() *
-        25
-      );
+    const bush =
+      createBush();
 
-    createBush(
-      z,
-      offset
+    bush.position.set(
+      getRoadCurve(z) +
+        side *
+          (ROAD_WIDTH / 2 +
+            3 +
+            Math.random() * 15),
+      0,
+      z
     );
-  }
 
+    environmentGroup.add(bush);
+  }
 
   /* MOUNTAINS */
 
-  for (
-    let i = 0;
-    i < 25;
-    i++
-  ) {
-
+  for (let i = 0; i < 25; i++) {
     const z =
-      -50 -
-      Math.random() *
-      (
-        WORLD_LENGTH -
-        50
-      );
+      -WORLD_LENGTH / 2 +
+      Math.random() * WORLD_LENGTH;
+
+    const mountain =
+      createMountain();
 
     const side =
-      Math.random() <
-      0.5
+      i % 2 === 0
         ? -1
         : 1;
 
-    createMountain(
-      z,
-      side *
-      (
-        35 +
-        Math.random() *
-        35
-      )
+    mountain.position.set(
+      getRoadCurve(z) +
+        side * (35 + Math.random() * 35),
+      0,
+      z
     );
+
+    environmentGroup.add(mountain);
   }
-
-
-  /* CACTUS */
-
-  for (
-    let i = 0;
-    i < 30;
-    i++
-  ) {
-
-    const z =
-      -20 -
-      Math.random() *
-      (
-        WORLD_LENGTH -
-        30
-      );
-
-    const side =
-      Math.random() <
-      0.5
-        ? -1
-        : 1;
-
-    createCactus(
-      z,
-      side *
-      (
-        ROAD_WIDTH / 2 +
-        7 +
-        Math.random() *
-        18
-      )
-    );
-  }
-
-
-  /* BUILDINGS */
-
-  for (
-    let i = 0;
-    i < 45;
-    i++
-  ) {
-
-    const z =
-      -20 -
-      Math.random() *
-      (
-        WORLD_LENGTH -
-        30
-      );
-
-    const side =
-      Math.random() <
-      0.5
-        ? -1
-        : 1;
-
-    createBuilding(
-      z,
-      side *
-      (
-        ROAD_WIDTH / 2 +
-        10 +
-        Math.random() *
-        22
-      )
-    );
-  }
-
 
   /* STREET LIGHTS */
 
-  for (
-    let i = 0;
-    i < 55;
-    i++
-  ) {
-
+  for (let i = 0; i < 110; i++) {
     const z =
-      -20 -
-      i * 13;
+      -WORLD_LENGTH / 2 +
+      Math.random() * WORLD_LENGTH;
 
-    createStreetLight(
-      z,
-      -1
+    const side =
+      i % 2 === 0
+        ? -1
+        : 1;
+
+    const light =
+      createStreetLight();
+
+    light.position.set(
+      getRoadCurve(z) +
+        side * (ROAD_WIDTH / 2 + 3),
+      0,
+      z
     );
 
-    createStreetLight(
-      z,
-      1
-    );
+    light.rotation.y =
+      getRoadDirection(z);
+
+    environmentGroup.add(light);
   }
 }
 
+function createTree() {
+  const group = new THREE.Group();
 
-/* =========================================================
-   TREE
-========================================================= */
-
-function createTree(
-  z,
-  offset
-) {
-
-  const tree =
-    new THREE.Group();
-
-  const trunk =
-    new THREE.Mesh(
-      new THREE.CylinderGeometry(
-        0.18,
-        0.25,
-        2.2,
-        8
-      ),
-      new THREE.MeshStandardMaterial({
-        color:
-          0x6d421f
-      })
-    );
-
-  trunk.position.y =
-    1.1;
-
-  tree.add(
-    trunk
+  const trunk = new THREE.Mesh(
+    new THREE.CylinderGeometry(
+      0.35,
+      0.5,
+      3,
+      8
+    ),
+    new THREE.MeshStandardMaterial({
+      color: 0x704214
+    })
   );
 
+  trunk.position.y = 1.5;
 
-  const leaves =
-    new THREE.Mesh(
-      new THREE.ConeGeometry(
-        1.2,
-        3.2,
-        8
-      ),
-      new THREE.MeshStandardMaterial({
-        color:
-          currentMap === 2
-            ? 0x164d2a
-            : 0x208c3c
-      })
-    );
+  group.add(trunk);
 
-  leaves.position.y =
-    3.0;
-
-  tree.add(
-    leaves
+  const leaves = new THREE.Mesh(
+    new THREE.ConeGeometry(
+      2.2,
+      5,
+      8
+    ),
+    new THREE.MeshStandardMaterial({
+      color: 0x197b30
+    })
   );
 
+  leaves.position.y = 4;
 
-  const scale =
-    0.7 +
-    Math.random() *
-    1.0;
+  group.add(leaves);
 
-  tree.scale.set(
-    scale,
-    scale,
-    scale
+  group.scale.setScalar(
+    0.7 + Math.random() * 0.8
   );
 
-  tree.userData.roadType =
-    "tree";
-
-  registerRoadObject(
-    tree,
-    z,
-    offset,
-    0,
-    true
-  );
+  return group;
 }
 
-
-/* =========================================================
-   BUSH
-========================================================= */
-
-function createBush(
-  z,
-  offset
-) {
-
-  const bush =
-    new THREE.Mesh(
-      new THREE.SphereGeometry(
-        0.65 +
-        Math.random() *
-        0.5,
-        8,
-        8
-      ),
-      new THREE.MeshStandardMaterial({
-        color:
-          currentMap === 4
-            ? 0x597d35
-            : 0x2f7d32
-      })
-    );
-
-  bush.scale.y =
-    0.65;
-
-  bush.position.y =
-    0.45;
-
-  bush.userData.roadType =
-    "bush";
-
-  registerRoadObject(
-    bush,
-    z,
-    offset,
-    0,
-    true
+function createBush() {
+  const bush = new THREE.Mesh(
+    new THREE.SphereGeometry(
+      0.8 + Math.random() * 0.6,
+      8,
+      6
+    ),
+    new THREE.MeshStandardMaterial({
+      color: 0x236b2b
+    })
   );
+
+  bush.position.y = 0.5;
+
+  return bush;
 }
 
-
-/* =========================================================
-   MOUNTAIN
-========================================================= */
-
-function createMountain(
-  z,
-  offset
-) {
-
-  const mountain =
-    new THREE.Mesh(
-      new THREE.ConeGeometry(
-        8 +
-        Math.random() *
-        7,
-        15 +
-        Math.random() *
-        12,
-        6
-      ),
-      new THREE.MeshStandardMaterial({
-        color:
-          0x5d665e
-      })
-    );
+function createMountain() {
+  const mountain = new THREE.Mesh(
+    new THREE.ConeGeometry(
+      12 + Math.random() * 10,
+      25 + Math.random() * 20,
+      7
+    ),
+    new THREE.MeshStandardMaterial({
+      color: 0x626262
+    })
+  );
 
   mountain.position.y =
-    7;
+    mountain.geometry.parameters.height / 2;
 
-  mountain.userData.roadType =
-    "mountain";
-
-  registerRoadObject(
-    mountain,
-    z,
-    offset,
-    0,
-    false
-  );
+  return mountain;
 }
 
+function createStreetLight() {
+  const group = new THREE.Group();
 
-/* =========================================================
-   CACTUS
-========================================================= */
-
-function createCactus(
-  z,
-  offset
-) {
-
-  const cactus =
-    new THREE.Group();
-
-  const material =
-    new THREE.MeshStandardMaterial({
-      color:
-        0x3d7d3b
-    });
-
-
-  const main =
-    new THREE.Mesh(
-      new THREE.CylinderGeometry(
-        0.18,
-        0.22,
-        2.5,
-        8
-      ),
-      material
-    );
-
-  main.position.y =
-    1.25;
-
-  cactus.add(
-    main
-  );
-
-
-  const arm =
-    new THREE.Mesh(
-      new THREE.CylinderGeometry(
-        0.13,
-        0.16,
-        1.1,
-        8
-      ),
-      material
-    );
-
-  arm.position.set(
-    0.35,
-    1.3,
-    0
-  );
-
-  arm.rotation.z =
-    Math.PI / 2;
-
-  cactus.add(
-    arm
-  );
-
-
-  cactus.userData.roadType =
-    "cactus";
-
-  registerRoadObject(
-    cactus,
-    z,
-    offset,
-    0,
-    true
-  );
-}
-
-
-/* =========================================================
-   BUILDING
-========================================================= */
-
-function createBuilding(
-  z,
-  offset
-) {
-
-  const height =
-    5 +
-    Math.random() *
-    14;
-
-  const width =
-    3 +
-    Math.random() *
-    5;
-
-  const depth =
-    3 +
-    Math.random() *
-    4;
-
-
-  const building =
-    new THREE.Mesh(
-      new THREE.BoxGeometry(
-        width,
-        height,
-        depth
-      ),
-      new THREE.MeshStandardMaterial({
-        color:
-          0x27313a,
-
-        roughness:
-          0.8
-      })
-    );
-
-  building.position.y =
-    height / 2;
-
-  building.userData.roadType =
-    "building";
-
-
-  if (
-    currentMap === 5
-  ) {
-
-    const windowMaterial =
-      new THREE.MeshStandardMaterial({
-        color:
-          0xffd54f,
-
-        emissive:
-          0xffb300,
-
-        emissiveIntensity:
-          1.5
-      });
-
-
-    for (
-      let y = 2;
-      y < height;
-      y += 3
-    ) {
-
-      const window =
-        new THREE.Mesh(
-          new THREE.BoxGeometry(
-            width * 0.65,
-            0.5,
-            0.04
-          ),
-          windowMaterial
-        );
-
-      window.position.set(
-        0,
-        y,
-        -depth / 2 -
-          0.03
-      );
-
-      building.add(
-        window
-      );
-    }
-  }
-
-
-  registerRoadObject(
-    building,
-    z,
-    offset,
-    0,
-    false
-  );
-}
-
-
-/* =========================================================
-   STREET LIGHT
-========================================================= */
-
-function createStreetLight(
-  z,
-  side
-) {
-
-  const pole =
-    new THREE.Group();
-
-  const metal =
-    new THREE.MeshStandardMaterial({
-      color:
-        0x555555,
-
-      metalness:
-        0.6
-    });
-
-
-  const post =
-    new THREE.Mesh(
-      new THREE.CylinderGeometry(
-        0.06,
-        0.09,
-        4.5,
-        8
-      ),
-      metal
-    );
-
-  post.position.y =
-    2.25;
-
-  pole.add(
-    post
-  );
-
-
-  const lamp =
-    new THREE.Mesh(
-      new THREE.SphereGeometry(
-        0.16,
-        10,
-        10
-      ),
-      new THREE.MeshStandardMaterial({
-        color:
-          0xfff2b2,
-
-        emissive:
-          0xffc107,
-
-        emissiveIntensity:
-          currentMap === 5
-            ? 2.5
-            : 0.8
-      })
-    );
-
-  lamp.position.set(
-    0,
-    4.55,
-    0
-  );
-
-  pole.add(
-    lamp
-  );
-
-
-  pole.userData.roadType =
-    "streetLight";
-
-  registerRoadObject(
-    pole,
-    z,
-    side *
-    (
-      ROAD_WIDTH / 2 +
-      2.2
+  const pole = new THREE.Mesh(
+    new THREE.CylinderGeometry(
+      0.08,
+      0.12,
+      5,
+      6
     ),
-    0,
-    true
+    new THREE.MeshStandardMaterial({
+      color: 0x555555
+    })
   );
+
+  pole.position.y = 2.5;
+
+  group.add(pole);
+
+  const lamp = new THREE.Mesh(
+    new THREE.SphereGeometry(
+      0.22,
+      8,
+      8
+    ),
+    new THREE.MeshStandardMaterial({
+      color: 0xffffaa,
+      emissive: 0xffff55,
+      emissiveIntensity: 0.7
+    })
+  );
+
+  lamp.position.y = 5;
+
+  group.add(lamp);
+
+  return group;
 }
 
+/* =========================================================
+   PLAYER
+========================================================= */
+
+function createPlayer() {
+  player = new THREE.Group();
+
+  const body = new THREE.Mesh(
+    new THREE.BoxGeometry(
+      2.2,
+      0.65,
+      4.2
+    ),
+    new THREE.MeshStandardMaterial({
+      color: 0xff2020,
+      metalness: 0.3,
+      roughness: 0.5
+    })
+  );
+
+  body.position.y = 0.75;
+
+  body.castShadow = true;
+
+  player.add(body);
+
+  const cabin = new THREE.Mesh(
+    new THREE.BoxGeometry(
+      1.6,
+      0.65,
+      1.7
+    ),
+    new THREE.MeshStandardMaterial({
+      color: 0x202d40,
+      metalness: 0.1,
+      roughness: 0.3
+    })
+  );
+
+  cabin.position.set(
+    0,
+    1.2,
+    -0.2
+  );
+
+  player.add(cabin);
+
+  createWheels(player);
+
+  player.position.set(
+    getRoadCurve(5),
+    getRoadHeight(5),
+    5
+  );
+
+  scene.add(player);
+}
+
+function createWheels(car) {
+  const wheelMaterial =
+    new THREE.MeshStandardMaterial({
+      color: 0x111111
+    });
+
+  const positions = [
+    [-1.15, 0.45, -1.35],
+    [1.15, 0.45, -1.35],
+    [-1.15, 0.45, 1.35],
+    [1.15, 0.45, 1.35]
+  ];
+
+  positions.forEach(pos => {
+    const wheel = new THREE.Mesh(
+      new THREE.CylinderGeometry(
+        0.45,
+        0.45,
+        0.3,
+        12
+      ),
+      wheelMaterial
+    );
+
+    wheel.rotation.z =
+      Math.PI / 2;
+
+    wheel.position.set(
+      pos[0],
+      pos[1],
+      pos[2]
+    );
+
+    car.add(wheel);
+  });
+}
 
 /* =========================================================
    ENEMIES
 ========================================================= */
 
 function createEnemies() {
+  const count =
+    [4, 4, 5, 5, 6][currentLevel - 1];
 
-  for (
-    let i = 0;
-    i < 6;
-    i++
-  ) {
-
+  for (let i = 0; i < count; i++) {
     const enemy =
-      createEnemyCar(
-        enemyColors[
-          i %
-          enemyColors.length
-        ]
-      );
+      createEnemyCar(i);
 
-    enemy.userData.index =
-      i;
-
-    enemy.userData.active =
-      true;
-
-    enemy.userData.roadZ =
-      -50 -
-      i * 65;
-
-    enemy.userData.laneOffset =
-      LANES[
-        i %
-        LANES.length
+    enemy.userData.lane =
+      [-2, -1, 0, 1, 2][
+        i % 5
       ];
 
-    enemy.userData.targetLane =
-      enemy.userData.laneOffset;
-
     enemy.userData.speed =
-      ENEMY_BASE_SPEED[0];
+      0.075 +
+      currentLevel * 0.012 +
+      Math.random() * 0.045;
+
+    enemy.userData.maxSpeed =
+      0.17 +
+      currentLevel * 0.025;
 
     enemy.userData.changeTimer =
-      3 +
-      Math.random() *
-      5;
+      100 +
+      Math.random() * 250;
 
-    enemy.userData.aggression =
-      0.5 +
-      Math.random() *
-      0.5;
+    enemy.userData.z =
+      -60 -
+      i * 70 -
+      Math.random() * 80;
 
-    scene.add(
-      enemy
-    );
+    positionEnemy(enemy);
 
-    enemyCars.push(
-      enemy
-    );
+    enemyGroup.add(enemy);
 
-    updateEnemyTransform(
-      enemy
-    );
+    enemies.push(enemy);
   }
 }
 
+function createEnemyCar(index) {
+  const car = new THREE.Group();
+
+  const colors = [
+    0x1565c0,
+    0xffc107,
+    0x8e24aa,
+    0xffffff,
+    0xff6f00,
+    0x00acc1
+  ];
+
+  const body = new THREE.Mesh(
+    new THREE.BoxGeometry(
+      2.2,
+      0.65,
+      4.2
+    ),
+    new THREE.MeshStandardMaterial({
+      color:
+        colors[index % colors.length]
+    })
+  );
+
+  body.position.y = 0.75;
+
+  body.castShadow = true;
+
+  car.add(body);
+
+  const cabin = new THREE.Mesh(
+    new THREE.BoxGeometry(
+      1.6,
+      0.65,
+      1.7
+    ),
+    new THREE.MeshStandardMaterial({
+      color: 0x1d2939
+    })
+  );
+
+  cabin.position.set(
+    0,
+    1.2,
+    -0.2
+  );
+
+  car.add(cabin);
+
+  createWheels(car);
+
+  return car;
+}
+
+function positionEnemy(enemy) {
+  const laneWidth =
+    ROAD_WIDTH / 5;
+
+  const z =
+    enemy.userData.z;
+
+  enemy.position.x =
+    getRoadCurve(z) +
+    enemy.userData.lane *
+      laneWidth;
+
+  enemy.position.y =
+    getRoadHeight(z);
+
+  enemy.position.z =
+    z;
+
+  enemy.rotation.y =
+    getRoadDirection(z);
+}
 
 /* =========================================================
-   ENEMY CAR
+   COINS
 ========================================================= */
 
-function createEnemyCar(
-  color
-) {
+function createCoins() {
+  clearGroup(coinGroup);
+  coins.length = 0;
 
-  const group =
-    new THREE.Group();
+  for (
+    let i = 0;
+    i < 45;
+    i++
+  ) {
+    const coin =
+      createCoin();
 
+    const z =
+      20 +
+      i * 10 +
+      Math.random() * 7;
+
+    const lane =
+      Math.floor(
+        Math.random() * 5
+      ) - 2;
+
+    const laneWidth =
+      ROAD_WIDTH / 5;
+
+    coin.userData.z = z;
+    coin.userData.lane = lane;
+
+    coin.position.x =
+      getRoadCurve(z) +
+      lane * laneWidth;
+
+    coin.position.y =
+      1.4 +
+      getRoadHeight(z);
+
+    coin.position.z =
+      z;
+
+    coin.rotation.y =
+      getRoadDirection(z);
+
+    coinGroup.add(coin);
+
+    coins.push(coin);
+  }
+}
+
+function createCoin() {
+  const coin = new THREE.Mesh(
+    new THREE.CylinderGeometry(
+      0.5,
+      0.5,
+      0.14,
+      20
+    ),
+    new THREE.MeshStandardMaterial({
+      color: 0xffd700,
+      metalness: 0.8,
+      roughness: 0.25,
+      emissive: 0x6b4f00,
+      emissiveIntensity: 0.25
+    })
+  );
+
+  coin.rotation.x =
+    Math.PI / 2;
+
+  coin.castShadow = true;
+
+  return coin;
+}
+
+/* =========================================================
+   CHECKPOINT
+========================================================= */
+
+function createCheckpoint() {
+  clearGroup(checkpointGroup);
+
+  checkpointPassed = false;
+
+  checkpointMesh =
+    createGate(
+      0x00e5ff,
+      "CHECKPOINT"
+    );
+
+  checkpointGroup.add(
+    checkpointMesh
+  );
+
+  updateCheckpointPosition();
+}
+
+function updateCheckpointPosition() {
+  if (!checkpointMesh) return;
+
+  checkpointMesh.position.x =
+    getRoadCurve(
+      CHECKPOINT_DISTANCE
+    );
+
+  checkpointMesh.position.y =
+    getRoadHeight(
+      CHECKPOINT_DISTANCE
+    );
+
+  checkpointMesh.position.z =
+    CHECKPOINT_DISTANCE;
+
+  checkpointMesh.rotation.y =
+    getRoadDirection(
+      CHECKPOINT_DISTANCE
+    );
+}
+
+/* =========================================================
+   FINISH LINE
+========================================================= */
+
+function createFinishLine() {
+  clearGroup(finishGroup);
+
+  finishMesh =
+    createGate(
+      0xffd700,
+      "FINISH"
+    );
+
+  finishGroup.add(
+    finishMesh
+  );
+
+  updateFinishPosition();
+}
+
+function updateFinishPosition() {
+  if (!finishMesh) return;
+
+  finishMesh.position.x =
+    getRoadCurve(
+      LEVEL_DISTANCE
+    );
+
+  finishMesh.position.y =
+    getRoadHeight(
+      LEVEL_DISTANCE
+    );
+
+  finishMesh.position.z =
+    LEVEL_DISTANCE;
+
+  finishMesh.rotation.y =
+    getRoadDirection(
+      LEVEL_DISTANCE
+    );
+}
+
+function createGate(color, text) {
+  const group = new THREE.Group();
 
   const material =
     new THREE.MeshStandardMaterial({
       color,
-      roughness:
-        0.4,
-      metalness:
-        0.3
+      emissive: color,
+      emissiveIntensity: 0.45
     });
 
+  const poleLeft = new THREE.Mesh(
+    new THREE.BoxGeometry(
+      0.45,
+      7,
+      0.45
+    ),
+    material
+  );
 
-  const black =
-    new THREE.MeshStandardMaterial({
-      color:
-        0x111111
-    });
+  poleLeft.position.set(
+    -ROAD_WIDTH / 2,
+    3.5,
+    0
+  );
 
+  group.add(poleLeft);
 
-  /* BODY */
+  const poleRight =
+    poleLeft.clone();
 
-  const body =
-    new THREE.Mesh(
+  poleRight.position.x =
+    ROAD_WIDTH / 2;
+
+  group.add(poleRight);
+
+  const top = new THREE.Mesh(
+    new THREE.BoxGeometry(
+      ROAD_WIDTH + 0.8,
+      0.45,
+      0.45
+    ),
+    material
+  );
+
+  top.position.y = 7;
+
+  group.add(top);
+
+  /* FINISH STRIPES */
+
+  for (
+    let i = 0;
+    i < 10;
+    i++
+  ) {
+    const stripe = new THREE.Mesh(
       new THREE.BoxGeometry(
-        2.2,
-        0.55,
-        4.0
+        ROAD_WIDTH / 10,
+        0.04,
+        1.0
       ),
-      material
+      new THREE.MeshStandardMaterial({
+        color:
+          i % 2 === 0
+            ? 0xffffff
+            : color
+      })
     );
 
-  body.position.y =
-    0.62;
+    stripe.position.x =
+      -ROAD_WIDTH / 2 +
+      ROAD_WIDTH / 20 +
+      i *
+        (ROAD_WIDTH / 10);
 
-  body.castShadow =
-    true;
+    stripe.position.y =
+      0.15;
 
-  group.add(
-    body
-  );
-
-
-  /* CABIN */
-
-  const cabin =
-    new THREE.Mesh(
-      new THREE.BoxGeometry(
-        1.55,
-        0.55,
-        1.7
-      ),
-      black
-    );
-
-  cabin.position.set(
-    0,
-    1.0,
-    0.2
-  );
-
-  group.add(
-    cabin
-  );
-
-
-  /* WHEELS */
-
-  const wheelMaterial =
-    new THREE.MeshStandardMaterial({
-      color:
-        0x080808
-    });
-
-
-  const positions = [
-    [-1.05, 0.4, -1.25],
-    [1.05, 0.4, -1.25],
-    [-1.05, 0.4, 1.25],
-    [1.05, 0.4, 1.25]
-  ];
-
-
-  positions.forEach(
-    pos => {
-
-      const wheel =
-        new THREE.Mesh(
-          new THREE.CylinderGeometry(
-            0.4,
-            0.4,
-            0.25,
-            16
-          ),
-          wheelMaterial
-        );
-
-      wheel.rotation.z =
-        Math.PI / 2;
-
-      wheel.position.set(
-        pos[0],
-        pos[1],
-        pos[2]
-      );
-
-      group.add(
-        wheel
-      );
-    }
-  );
-
+    group.add(stripe);
+  }
 
   return group;
 }
 
-
 /* =========================================================
-   ENEMY TRANSFORM
+   LEVEL SETUP
 ========================================================= */
 
-function updateEnemyTransform(
-  enemy
-) {
+function startLevel(level) {
+  currentLevel = level;
+  selectedStartLevel = level;
 
-  const roadZ =
-    enemy.userData.roadZ;
+  distance =
+    (level - 1) * LEVEL_DISTANCE;
 
-  const roadX =
-    getRoadCurve(
-      roadZ
-    );
+  levelDistance = 0;
 
-  const roadY =
-    getRoadHeight(
-      roadZ
-    );
+  score = 0;
 
-  enemy.position.x =
-    roadX +
-    enemy.userData.laneOffset;
+  speed = 0;
 
-  enemy.position.z =
-    roadZ;
+  playerX = 0;
 
-  enemy.position.y =
-    roadY;
+  gameRunning = true;
+  gameWon = false;
+  gameOver = false;
 
+  checkpointPassed = false;
 
-  enemy.rotation.y =
-    getRoadDirection(
-      roadZ
-    );
+  updateMapVisuals();
+
+  createCoins();
+
+  updateCheckpointPosition();
+  updateFinishPosition();
+
+  resetEnemies();
+
+  positionPlayer();
+
+  hideAllScreens();
+
+  showLevelNotification();
+
+  updateHUD();
 }
 
+function resetEnemies() {
+  enemies.forEach(
+    (enemy, index) => {
+      enemy.userData.z =
+        -60 -
+        index * 70 -
+        Math.random() * 80;
+
+      enemy.userData.lane =
+        [-2, -1, 0, 1, 2][
+          index % 5
+        ];
+
+      enemy.userData.speed =
+        0.075 +
+        currentLevel * 0.012 +
+        Math.random() * 0.045;
+
+      positionEnemy(enemy);
+    }
+  );
+}
+
+function positionPlayer() {
+  player.position.x =
+    getRoadCurve(5);
+
+  player.position.y =
+    getRoadHeight(5);
+
+  player.position.z = 5;
+
+  player.rotation.y =
+    getRoadDirection(5);
+}
 
 /* =========================================================
    MAP VISUALS
 ========================================================= */
 
-function applyMapVisuals() {
-
-  if (
-    !scene
-  ) {
-
-    return;
-  }
-
+function updateMapVisuals() {
   const map =
-    MAPS[currentMap];
-
+    MAPS[currentLevel];
 
   scene.background =
     new THREE.Color(
       map.sky
     );
 
-
-  scene.fog =
-    new THREE.Fog(
-      map.sky,
-      currentMap === 5
-        ? 80
-        : 130,
-
-      currentMap === 5
-        ? 650
-        : 1000
+  scene.fog.color =
+    new THREE.Color(
+      map.sky
     );
 
+  roadSegments.forEach(
+    segment => {
+      segment.group.traverse(
+        child => {
+          if (
+            child.material &&
+            child.material.color
+          ) {
+            const old =
+              child.material.color
+                .getHex();
 
-  scene.traverse(
-    object => {
-
-      if (
-        object.userData &&
-        object.userData.isGround
-      ) {
-
-        object.material.color.set(
-          map.ground
-        );
-      }
-    }
-  );
-
-
-  roadObjects.forEach(
-    object => {
-
-      const type =
-        object.userData.roadType;
-
-
-      if (
-        type === "road"
-      ) {
-
-        object.material.color.set(
-          map.road
-        );
-      }
-
-
-      if (
-        type === "edge"
-      ) {
-
-        object.material.color.set(
-          map.edge
-        );
-
-        if (
-          object.material.emissive
-        ) {
-
-          object.material.emissive.set(
-            currentMap === 5
-              ? map.edge
-              : 0x000000
-          );
-
-          object.material.emissiveIntensity =
-            currentMap === 5
-              ? 1.2
-              : 0;
+            if (
+              old === 0x292929 ||
+              old === 0x252525 ||
+              old === 0x303030 ||
+              old === 0x202020
+            ) {
+              child.material.color.set(
+                map.road
+              );
+            }
+          }
         }
-      }
-
-
-      if (
-        type === "centerDash"
-      ) {
-
-        object.material.color.set(
-          0xf5f5f5
-        );
-
-        if (
-          object.material.emissive
-        ) {
-
-          object.material.emissive.set(
-            currentMap === 5
-              ? 0x00e5ff
-              : 0x000000
-          );
-        }
-      }
-
-
-      if (
-        type === "laneDash"
-      ) {
-
-        object.material.color.set(
-          currentMap === 5
-            ? 0x9defff
-            : 0xd9d9d9
-        );
-      }
-
-
-      if (
-        type === "shoulder"
-      ) {
-
-        object.material.color.set(
-          map.shoulder
-        );
-      }
-
-
-      if (
-        type === "bush"
-      ) {
-
-        object.material.color.set(
-          currentMap === 4
-            ? 0x597d35
-            : 0x2f7d32
-        );
-      }
-    }
-  );
-
-
-  showLevelNotification();
-}
-
-
-/* =========================================================
-   LEVEL NOTIFICATION
-========================================================= */
-
-let notificationTimer = null;
-
-function showLevelNotification() {
-
-  if (
-    !levelNotification
-  ) {
-
-    return;
-  }
-
-  levelNumber.textContent =
-    `LEVEL ${currentMap}`;
-
-  levelName.textContent =
-    MAPS[currentMap].name;
-
-  levelNotification.classList.remove(
-    "hidden"
-  );
-
-  clearTimeout(
-    notificationTimer
-  );
-
-  notificationTimer =
-    setTimeout(
-      () => {
-
-        levelNotification.classList.add(
-          "hidden"
-        );
-
-      },
-      1800
-    );
-}
-
-
-/* =========================================================
-   START GAME
-========================================================= */
-
-function startGame(
-  startLevel = 1
-) {
-
-  selectedStartLevel =
-    THREE.MathUtils.clamp(
-      Number(startLevel) || 1,
-      1,
-      5
-    );
-
-
-  mainMenu.classList.add(
-    "hidden"
-  );
-
-  levelMenu.classList.add(
-    "hidden"
-  );
-
-  gameElement.classList.remove(
-    "hidden"
-  );
-
-  gameOver.classList.add(
-    "hidden"
-  );
-
-  loading.classList.add(
-    "hidden"
-  );
-
-
-  gameStarted = true;
-
-  gameOverState = false;
-
-
-  /* RESET */
-
-  speed = 0;
-
-  score = 0;
-
-  distance =
-    (
-      selectedStartLevel -
-      1
-    ) *
-    100;
-
-  level =
-    selectedStartLevel;
-
-  currentMap =
-    selectedStartLevel;
-
-  steeringVelocity = 0;
-
-  playerRoadOffset = 0;
-
-  cameraShakeTime = 0;
-
-
-  stopAllInput();
-
-
-  /* PLAYER */
-
-  if (
-    car
-  ) {
-
-    car.position.x =
-      getRoadCurve(5);
-
-    car.position.y =
-      getRoadHeight(5);
-
-    car.position.z =
-      5;
-
-    car.rotation.y =
-      getRoadDirection(5);
-  }
-
-
-  resetEnemies();
-
-  applyMapVisuals();
-
-  updateHUD();
-}
-
-
-/* =========================================================
-   RESET ENEMIES
-========================================================= */
-
-function resetEnemies() {
-
-  const activeCount =
-    ENEMY_COUNT_BY_LEVEL[
-      currentMap - 1
-    ];
-
-
-  enemyCars.forEach(
-    (
-      enemy,
-      i
-    ) => {
-
-      enemy.userData.active =
-        i < activeCount;
-
-
-      if (
-        !enemy.userData.active
-      ) {
-
-        enemy.visible =
-          false;
-
-        return;
-      }
-
-
-      enemy.visible =
-        true;
-
-
-      const spacing =
-        Math.max(
-          38,
-          72 -
-          currentMap *
-          6
-        );
-
-
-      enemy.userData.roadZ =
-        -40 -
-        i *
-        spacing -
-        Math.random() *
-        45;
-
-
-      enemy.userData.laneOffset =
-        LANES[
-          Math.floor(
-            Math.random() *
-            LANES.length
-          )
-        ];
-
-
-      enemy.userData.targetLane =
-        enemy.userData.laneOffset;
-
-
-      enemy.userData.speed =
-        getEnemySpeed(
-          enemy
-        );
-
-
-      enemy.userData.changeTimer =
-        2 +
-        Math.random() *
-        4;
-
-
-      updateEnemyTransform(
-        enemy
       );
     }
   );
+
+  updateEnvironmentTheme();
 }
 
+function updateEnvironmentTheme() {
+  environmentGroup.traverse(
+    object => {
+      if (
+        !object.material ||
+        !object.material.color
+      ) {
+        return;
+      }
 
-/* =========================================================
-   ENEMY SPEED
-========================================================= */
+      const hex =
+        object.material.color
+          .getHex();
 
-function getEnemySpeed(
-  enemy
-) {
-
-  const mapIndex =
-    currentMap - 1;
-
-
-  const base =
-    ENEMY_BASE_SPEED[
-      mapIndex
-    ];
-
-
-  const max =
-    ENEMY_MAX_SPEED[
-      mapIndex
-    ];
-
-
-  let result =
-    base +
-    Math.random() *
-    (
-      max -
-      base
-    );
-
-
-  if (
-    Math.random() <
-    0.30 +
-    currentMap *
-    0.06
-  ) {
-
-    result +=
-      0.025 +
-      Math.random() *
-      0.04;
-  }
-
-
-  return Math.min(
-    result,
-    max
+      if (
+        hex === 0x3d8b3d ||
+        hex === 0x285c2b ||
+        hex === 0x496b45 ||
+        hex === 0xb99a5c ||
+        hex === 0x181c24
+      ) {
+        object.material.color.set(
+          MAPS[currentLevel].grass
+        );
+      }
+    }
   );
 }
 
-
 /* =========================================================
-   ENEMY LANE CHOICE
+   GAME LOOP
 ========================================================= */
 
-function chooseEnemyLane(
-  enemy
-) {
+function animate() {
+  requestAnimationFrame(
+    animate
+  );
 
-  const current =
-    enemy.userData.laneOffset;
-
-
-  const possible =
-    LANES.filter(
-      lane =>
-        Math.abs(
-          lane -
-          current
-        ) > 0.5
+  const delta =
+    Math.min(
+      clock.getDelta(),
+      0.05
     );
 
+  if (gameRunning) {
+    updatePlayer(delta);
+    updateEnemies(delta);
+    updateCoins(delta);
+    updateWorldMovement(delta);
+    updateCheckpoint();
+    updateFinish();
 
-  if (
-    possible.length === 0
-  ) {
+    checkCollisions();
 
-    return;
+    updateHUD();
   }
 
-
-  let safeLanes =
-    possible.filter(
-      lane => {
-
-        const playerLane =
-          playerRoadOffset;
-
-        return (
-          Math.abs(
-            lane -
-            playerLane
-          ) > 1.0
-        );
-      }
-    );
-
-
-  if (
-    safeLanes.length === 0
-  ) {
-
-    safeLanes =
-      possible;
-  }
-
-
-  const target =
-    safeLanes[
-      Math.floor(
-        Math.random() *
-        safeLanes.length
-      )
-    ];
-
-
-  enemy.userData.targetLane =
-    target;
+  renderer.render(
+    scene,
+    camera
+  );
 }
-
-
-/* =========================================================
-   ENEMY LANE MOVEMENT
-========================================================= */
-
-function updateEnemyLane(
-  enemy
-) {
-
-  const current =
-    enemy.userData.laneOffset;
-
-  const target =
-    enemy.userData.targetLane;
-
-
-  const laneSpeed =
-    0.018 +
-    currentMap *
-    0.003;
-
-
-  if (
-    Math.abs(
-      target -
-      current
-    ) <
-    0.02
-  ) {
-
-    enemy.userData.laneOffset =
-      target;
-
-    return;
-  }
-
-
-  if (
-    target >
-    current
-  ) {
-
-    enemy.userData.laneOffset +=
-      laneSpeed;
-
-  } else {
-
-    enemy.userData.laneOffset -=
-      laneSpeed;
-  }
-
-
-  enemy.userData.laneOffset =
-    THREE.MathUtils.clamp(
-      enemy.userData.laneOffset,
-      -3.2,
-      3.2
-    );
-}
-
 
 /* =========================================================
    PLAYER UPDATE
 ========================================================= */
 
-function updatePlayer() {
+function updatePlayer(delta) {
+  /* =========================
+     GAS & BRAKE
+  ========================= */
 
-  if (
-    !gameStarted
-  ) {
-
-    return;
-  }
-
-  if (
-    gameOverState
-  ) {
-
-    return;
-  }
-
-
-  /* ACCELERATION */
-
-  if (
-    gasPressed
-  ) {
-
-    speed +=
-      ACCELERATION;
-
-    if (
-      speed >
-      MAX_SPEED
-    ) {
-
-      speed =
-        MAX_SPEED;
-    }
-
+  if (gasPressed) {
+    speed += acceleration;
   } else {
-
-    speed -=
-      NATURAL_DECELERATION;
-
-    if (
-      speed < 0
-    ) {
-
-      speed = 0;
-    }
+    speed -= friction;
   }
 
-
-  /* BRAKE */
-
-  if (
-    brakePressed
-  ) {
-
-    speed -=
-      BRAKE_POWER;
-
-    if (
-      speed < 0
-    ) {
-
-      speed = 0;
-    }
+  if (brakePressed) {
+    speed -= braking;
   }
 
+  speed = THREE.MathUtils.clamp(
+    speed,
+    0,
+    maxPlayerSpeed
+  );
 
-  /* STEERING */
 
-  if (
-    steerLeft
-  ) {
+  /* =========================
+     STEERING
+  ========================= */
 
-    steeringVelocity -=
-      STEER_ACCELERATION;
+  let steerInput = 0;
+
+  if (leftPressed) {
+    steerInput -= 1;
   }
 
-
-  if (
-    steerRight
-  ) {
-
-    steeringVelocity +=
-      STEER_ACCELERATION;
+  if (rightPressed) {
+    steerInput += 1;
   }
-
-
-  if (
-    !steerLeft &&
-    !steerRight
-  ) {
-
-    if (
-      steeringVelocity > 0
-    ) {
-
-      steeringVelocity -=
-        STEER_DECELERATION;
-
-      if (
-        steeringVelocity < 0
-      ) {
-
-        steeringVelocity = 0;
-      }
-
-    } else if (
-      steeringVelocity < 0
-    ) {
-
-      steeringVelocity +=
-        STEER_DECELERATION;
-
-      if (
-        steeringVelocity > 0
-      ) {
-
-        steeringVelocity = 0;
-      }
-    }
-  }
-
-
-  steeringVelocity =
-    THREE.MathUtils.clamp(
-      steeringVelocity,
-      -STEER_MAX_SPEED,
-      STEER_MAX_SPEED
-    );
-
 
   /*
-     Steering dibuat sedikit lebih lembut
-     agar cocok dengan highway smooth.
+    Kecepatan belok mengikuti kecepatan mobil.
+    Semakin cepat, semakin responsif.
   */
+  const steeringSpeed =
+    0.055 + speed * 0.12;
 
-  playerRoadOffset +=
-    steeringVelocity *
-    (
-      0.60 +
-      speed *
-      0.052
-    );
+  playerX +=
+    steerInput *
+    steeringSpeed *
+    delta *
+    60;
 
 
-  playerRoadOffset =
+  /* =========================
+     STEERING AUTO CENTER
+  ========================= */
+
+  /*
+    Kalau tidak menekan kiri/kanan,
+    posisi mobil perlahan stabil.
+  */
+  if (steerInput === 0) {
+    playerX *= 0.96;
+  }
+
+
+  /* =========================
+     BATAS JALAN
+  ========================= */
+
+  const maxOffset =
+    ROAD_WIDTH / 2 - 1.5;
+
+  playerX =
     THREE.MathUtils.clamp(
-      playerRoadOffset,
-      -ROAD_LIMIT,
-      ROAD_LIMIT
+      playerX,
+      -maxOffset,
+      maxOffset
     );
 
 
-  /* PLAYER POSITION */
+  /* =========================
+     POSISI MOBIL
+  ========================= */
 
-  const roadX =
+  const roadCenter =
     getRoadCurve(5);
 
-  const roadY =
+  player.position.x =
+    roadCenter +
+    playerX;
+
+  player.position.y =
     getRoadHeight(5);
 
-
-  car.position.x =
-    roadX +
-    playerRoadOffset;
-
-  car.position.z =
-    5;
-
-  car.position.y =
-    roadY +
-    Math.sin(
-      performance.now() *
-      0.015
-    ) *
-    0.012;
+  player.position.z = 5;
 
 
-  /*
-     Mobil mengikuti arah highway
-     secara halus.
-  */
+  /* =========================
+     ROTASI MOBIL
+  ========================= */
 
   const roadDirection =
     getRoadDirection(5);
 
-
-  const steeringAngle =
-    steeringVelocity *
-    0.65;
-
-
-  car.rotation.y =
+  /*
+    Mobil mengikuti arah jalan.
+    Input kiri/kanan hanya memberikan
+    sedikit tambahan rotasi.
+  */
+  player.rotation.y =
     roadDirection +
-    steeringAngle;
+    steerInput * 0.12;
 
 
-  /* DISTANCE */
+  /* =========================
+     CAMERA
+  ========================= */
 
-  if (
-    speed > 0
-  ) {
+  camera.position.x =
+    THREE.MathUtils.lerp(
+      camera.position.x,
+      player.position.x,
+      0.08
+    );
 
-    distance +=
-      speed *
-      0.045;
+  camera.position.y =
+    THREE.MathUtils.lerp(
+      camera.position.y,
+      6.2,
+      0.08
+    );
 
-    score +=
-      speed *
-      0.08;
-  }
+  camera.position.z = 14;
+
+
+  /* =========================
+     CAMERA LOOK AHEAD
+  ========================= */
+
+  const lookZ = -12;
+
+  const lookX =
+    getRoadCurve(lookZ);
+
+  const lookY =
+    1.2 +
+    getRoadHeight(lookZ);
+
+  camera.lookAt(
+    lookX,
+    lookY,
+    lookZ
+  );
 }
-
 
 /* =========================================================
    WORLD MOVEMENT
 ========================================================= */
 
-function updateWorldMovement() {
+function updateWorldMovement(delta) {
+  const movement =
+    speed * 60 * delta;
 
-  if (
-    !gameStarted
-  ) {
+  distance += movement;
 
-    return;
-  }
+  levelDistance +=
+    movement;
 
-  if (
-    gameOverState
-  ) {
-
-    return;
-  }
-
-  if (
-    speed <= 0
-  ) {
-
-    return;
-  }
-
-
-  const worldMove =
-    speed *
-    WORLD_SPEED_MULTIPLIER;
-
-
-  roadObjects.forEach(
-    object => {
-
-      object.userData.roadZ +=
-        worldMove;
-
+  roadSegments.forEach(
+    segment => {
+      segment.z += movement;
 
       if (
-        object.userData.roadZ >
-        18
+        segment.z >
+        WORLD_LENGTH / 2
       ) {
-
-        object.userData.roadZ -=
+        segment.z -=
           WORLD_LENGTH;
       }
 
-
       updateRoadObjectTransform(
-        object
+        segment.group,
+        segment.z
       );
     }
   );
-}
 
+  updateEnvironmentMovement(
+    movement
+  );
 
-/* =========================================================
-   UPDATE ENEMIES
-========================================================= */
-
-function updateEnemies() {
-
-  if (
-    !gameStarted
-  ) {
-
-    return;
-  }
-
-  if (
-    gameOverState
-  ) {
-
-    return;
-  }
-
-
-  const worldMove =
-    speed *
-    WORLD_SPEED_MULTIPLIER;
-
-
-  enemyCars.forEach(
+  enemies.forEach(
     enemy => {
+      enemy.userData.z +=
+        movement;
 
       if (
-        !enemy.userData.active
+        enemy.userData.z >
+        WORLD_LENGTH / 2
       ) {
+        enemy.userData.z -=
+          WORLD_LENGTH;
+      }
 
+      positionEnemy(enemy);
+    }
+  );
+
+  coins.forEach(
+    coin => {
+      coin.userData.z +=
+        movement;
+
+      if (
+        coin.userData.z >
+        WORLD_LENGTH / 2
+      ) {
+        coin.userData.z -=
+          WORLD_LENGTH;
+      }
+
+      const laneWidth =
+        ROAD_WIDTH / 5;
+
+      coin.position.x =
+        getRoadCurve(
+          coin.userData.z
+        ) +
+        coin.userData.lane *
+          laneWidth;
+
+      coin.position.y =
+        1.4 +
+        getRoadHeight(
+          coin.userData.z
+        );
+
+      coin.position.z =
+        coin.userData.z;
+
+      coin.rotation.y +=
+        0.06;
+    }
+  );
+
+  if (checkpointMesh) {
+    checkpointMesh.position.z =
+      CHECKPOINT_DISTANCE -
+      levelDistance;
+
+    checkpointMesh.position.x =
+      getRoadCurve(
+        checkpointMesh.position.z
+      );
+
+    checkpointMesh.position.y =
+      getRoadHeight(
+        checkpointMesh.position.z
+      );
+  }
+
+  if (finishMesh) {
+    finishMesh.position.z =
+      LEVEL_DISTANCE -
+      levelDistance;
+
+    finishMesh.position.x =
+      getRoadCurve(
+        finishMesh.position.z
+      );
+
+    finishMesh.position.y =
+      getRoadHeight(
+        finishMesh.position.z
+      );
+  }
+}
+
+/* =========================================================
+   ENVIRONMENT MOVEMENT
+========================================================= */
+
+function updateEnvironmentMovement(
+  movement
+) {
+  environmentGroup.children.forEach(
+    object => {
+      if (
+        object ===
+        environmentGroup.children[0]
+      ) {
         return;
       }
 
-
-      enemy.userData.roadZ +=
-        enemy.userData.speed -
-        worldMove;
-
-
-      enemy.userData.changeTimer -=
-        0.016;
-
+      object.position.z +=
+        movement;
 
       if (
-        enemy.userData.changeTimer <=
-        0
+        object.position.z >
+        WORLD_LENGTH / 2
       ) {
-
-        const changeChance =
-          0.35 +
-          currentMap *
-          0.10;
-
-
-        if (
-          Math.random() <
-          changeChance
-        ) {
-
-          chooseEnemyLane(
-            enemy
-          );
-        }
-
-
-        enemy.userData.changeTimer =
-          Math.max(
-            1.8,
-            5.5 -
-            currentMap *
-            0.5
-          ) +
-          Math.random() *
-          3;
+        object.position.z -=
+          WORLD_LENGTH;
       }
 
-
-      updateEnemyLane(
-        enemy
-      );
-
-
-      const relativeZ =
-        enemy.userData.roadZ -
-        5;
-
-
-      if (
-        relativeZ < -80
-      ) {
-
-        enemy.userData.speed +=
-          0.0015;
-
-      } else if (
-        relativeZ > 8
-      ) {
-
-        enemy.userData.speed -=
-          0.001;
-      }
-
-
-      const maxSpeed =
-        ENEMY_MAX_SPEED[
-          currentMap - 1
-        ];
-
-
-      enemy.userData.speed =
-        THREE.MathUtils.clamp(
-          enemy.userData.speed,
-
-          ENEMY_BASE_SPEED[
-            currentMap - 1
-          ],
-
-          maxSpeed
+      const roadX =
+        getRoadCurve(
+          object.position.z
         );
 
+      const side =
+        object.position.x >=
+        roadX
+          ? 1
+          : -1;
 
       if (
-        enemy.userData.roadZ >
-        18
+        Math.abs(
+          object.position.x -
+          roadX
+        ) < ROAD_WIDTH
       ) {
-
-        enemy.userData.roadZ =
-          -WORLD_LENGTH +
-          Math.random() *
-          160;
-
-
-        enemy.userData.laneOffset =
-          LANES[
-            Math.floor(
-              Math.random() *
-              LANES.length
-            )
-          ];
-
-
-        enemy.userData.targetLane =
-          enemy.userData.laneOffset;
-
-
-        enemy.userData.speed =
-          getEnemySpeed(
-            enemy
-          );
-
-
-        enemy.userData.changeTimer =
-          2 +
-          Math.random() *
-          4;
+        object.position.x =
+          roadX +
+          side *
+            (ROAD_WIDTH / 2 +
+              8);
       }
-
-
-      if (
-        enemy.userData.roadZ <
-        -WORLD_LENGTH -
-        60
-      ) {
-
-        enemy.userData.roadZ =
-          -WORLD_LENGTH +
-          Math.random() *
-          160;
-      }
-
-
-      updateEnemyTransform(
-        enemy
-      );
-
-
-      checkCollision(
-        enemy
-      );
     }
   );
 }
 
+/* =========================================================
+   ENEMIES UPDATE
+========================================================= */
+
+function updateEnemies(delta) {
+  enemies.forEach(
+    enemy => {
+      const aggression =
+        1 +
+        currentLevel *
+          0.08;
+
+      enemy.userData.z +=
+        enemy.userData.speed *
+        aggression;
+
+      enemy.userData.changeTimer -=
+        delta * 60;
+
+      if (
+        enemy.userData.changeTimer <= 0
+      ) {
+        enemy.userData.changeTimer =
+          150 +
+          Math.random() *
+            300;
+
+        const direction =
+          Math.random() < 0.5
+            ? -1
+            : 1;
+
+        enemy.userData.lane +=
+          direction;
+
+        enemy.userData.lane =
+          THREE.MathUtils.clamp(
+            enemy.userData.lane,
+            -2,
+            2
+          );
+      }
+
+      if (
+        enemy.userData.z >
+        WORLD_LENGTH / 2
+      ) {
+        enemy.userData.z -=
+          WORLD_LENGTH;
+      }
+
+      positionEnemy(enemy);
+    }
+  );
+}
+
+/* =========================================================
+   COIN UPDATE
+========================================================= */
+
+function updateCoins(delta) {
+  coins.forEach(
+    coin => {
+      coin.rotation.z +=
+        delta * 3;
+    }
+  );
+}
+
+/* =========================================================
+   CHECKPOINT
+========================================================= */
+
+function updateCheckpoint() {
+  if (
+    checkpointPassed
+  ) {
+    return;
+  }
+
+  if (
+    levelDistance >=
+    CHECKPOINT_DISTANCE
+  ) {
+    checkpointPassed = true;
+
+    score += 500;
+
+    showMessage(
+      "CHECKPOINT!",
+      "+500 SCORE"
+    );
+  }
+}
+
+/* =========================================================
+   FINISH
+========================================================= */
+
+function updateFinish() {
+  if (
+    levelDistance >=
+    LEVEL_DISTANCE
+  ) {
+    winLevel();
+  }
+}
+
+function winLevel() {
+  if (
+    gameWon ||
+    gameOver
+  ) {
+    return;
+  }
+
+  gameWon = true;
+  gameRunning = false;
+
+  score += 1000;
+
+  saveCoins();
+
+  const nextLevel =
+    currentLevel < 5
+      ? currentLevel + 1
+      : 5;
+
+  unlockLevel(
+    nextLevel
+  );
+
+  showVictoryScreen();
+}
 
 /* =========================================================
    COLLISION
 ========================================================= */
 
-function checkCollision(
-  enemy
-) {
-
-  const dx =
-    Math.abs(
-      car.position.x -
-      enemy.position.x
-    );
-
-
-  const dz =
-    Math.abs(
-      car.position.z -
-      enemy.position.z
-    );
-
-
-  if (
-    dx < 1.8 &&
-    dz < 2.7
-  ) {
-
-    createCollisionEffect(
-      car.position.x,
-      car.position.y +
-      0.5,
-      car.position.z
-    );
-
-    endGame();
-  }
-}
-
-
-/* =========================================================
-   COLLISION EFFECT
-========================================================= */
-
-function createCollisionEffect(
-  x,
-  y,
-  z
-) {
-
-  cameraShakeTime =
-    CAMERA_SHAKE_DURATION;
-
-
-  for (
-    let i = 0;
-    i < 25;
-    i++
-  ) {
-
-    const particle =
-      new THREE.Mesh(
-        new THREE.SphereGeometry(
-          0.06 +
-          Math.random() *
-          0.06,
-          6,
-          6
-        ),
-        new THREE.MeshBasicMaterial({
-          color:
-            Math.random() <
-            0.5
-              ? 0xff9800
-              : 0xffeb3b
-        })
-      );
-
-
-    particle.position.set(
-      x,
-      y,
-      z
-    );
-
-
-    particle.userData.velocity =
-      new THREE.Vector3(
-        (
-          Math.random() -
-          0.5
-        ) *
-        0.25,
-
-        Math.random() *
-        0.25,
-
-        (
-          Math.random() -
-          0.5
-        ) *
-        0.25
-      );
-
-
-    particle.userData.life =
-      1;
-
-
-    scene.add(
-      particle
-    );
-
-
-    collisionParticles.push(
-      particle
-    );
-  }
-}
-
-
-/* =========================================================
-   PARTICLES
-========================================================= */
-
-function updateParticles() {
-
-  for (
-    let i =
-      collisionParticles.length -
-      1;
-
-    i >= 0;
-
-    i--
-  ) {
-
-    const particle =
-      collisionParticles[i];
-
-
-    particle.position.add(
-      particle.userData.velocity
-    );
-
-
-    particle.userData.velocity.y -=
-      0.01;
-
-
-    particle.userData.life -=
-      0.025;
-
-
-    particle.scale.setScalar(
-      particle.userData.life
-    );
-
-
-    if (
-      particle.userData.life <=
-      0
-    ) {
-
-      scene.remove(
-        particle
-      );
-
-
-      particle.geometry.dispose();
-
-      particle.material.dispose();
-
-
-      collisionParticles.splice(
-        i,
-        1
-      );
-    }
-  }
-}
-
-
-/* =========================================================
-   CAMERA
-========================================================= */
-
-function updateCamera() {
-
-  if (
-    !car
-  ) {
-
-    return;
-  }
-
-
-  const roadX =
-    getRoadCurve(5);
-
-
-  const roadDirection =
-    getRoadDirection(5);
-
-
-  let targetX =
-    roadX +
-    playerRoadOffset;
-
-
-  let targetY =
-    5;
-
-
-  if (
-    cameraShakeTime > 0
-  ) {
-
-    cameraShakeTime -=
-      0.016;
-
-
-    targetX +=
-      (
-        Math.random() -
-        0.5
-      ) *
-      0.35;
-
-
-    targetY +=
-      (
-        Math.random() -
-        0.5
-      ) *
-      0.25;
-  }
-
-
-  camera.position.x +=
-    (
-      targetX -
-      camera.position.x
-    ) *
-    0.08;
-
-
-  camera.position.y +=
-    (
-      targetY -
-      camera.position.y
-    ) *
-    0.08;
-
-
-  camera.position.z +=
-    (
-      9 -
-      camera.position.z
-    ) *
-    0.08;
-
-
-  /*
-     Kamera sedikit mengikuti arah highway.
-     Ini membuat tikungan terasa lebih natural.
-  */
-
-  const lookAheadX =
-    getRoadCurve(
-      -12
-    );
-
-
-  const smoothLookX =
-    lookAheadX +
-    playerRoadOffset *
-    0.35;
-
-
-  camera.lookAt(
-    smoothLookX,
-    1,
-    -10
-  );
-}
-
-
-/* =========================================================
-   INPUT RESET
-========================================================= */
-
-function stopAllInput() {
-
-  steerLeft = false;
-
-  steerRight = false;
-
-  gasPressed = false;
-
-  brakePressed = false;
-}
-
-
-/* =========================================================
-   MOBILE BUTTON
-========================================================= */
-
-function bindHoldButton(
-  id,
-  setter
-) {
-
-  const element =
-    document.getElementById(
-      id
-    );
-
-
-  if (
-    !element
-  ) {
-
-    return;
-  }
-
-
-  const start =
-    event => {
-
-      event.preventDefault();
-
-      setter(true);
-
-
-      try {
-
-        element.setPointerCapture(
-          event.pointerId
+function checkCollisions() {
+  /* COINS */
+
+  coins.forEach(
+    coin => {
+      if (
+        coin.userData.collected
+      ) {
+        return;
+      }
+
+      const dx =
+        player.position.x -
+        coin.position.x;
+
+      const dz =
+        player.position.z -
+        coin.position.z;
+
+      const distanceToCoin =
+        Math.sqrt(
+          dx * dx +
+          dz * dz
         );
 
-      } catch (
-        error
+      if (
+        distanceToCoin <
+        1.8
       ) {
-
-        /* ignore */
+        collectCoin(
+          coin
+        );
       }
-    };
-
-
-  const stop =
-    event => {
-
-      event.preventDefault();
-
-      setter(false);
-    };
-
-
-  element.addEventListener(
-    "pointerdown",
-    start,
-    {
-      passive: false
     }
   );
 
+  /* ENEMIES */
 
-  element.addEventListener(
-    "pointerup",
-    stop,
-    {
-      passive: false
-    }
-  );
+  enemies.forEach(
+    enemy => {
+      const dx =
+        player.position.x -
+        enemy.position.x;
 
-
-  element.addEventListener(
-    "pointercancel",
-    stop,
-    {
-      passive: false
-    }
-  );
-
-
-  element.addEventListener(
-    "lostpointercapture",
-    stop,
-    {
-      passive: false
-    }
-  );
-
-
-  element.addEventListener(
-    "contextmenu",
-    event => {
-
-      event.preventDefault();
-    }
-  );
-}
-
-
-/* =========================================================
-   CONTROLS
-========================================================= */
-
-function setupControls() {
-
-  bindHoldButton(
-    "left",
-    value => {
-
-      steerLeft = value;
-    }
-  );
-
-
-  bindHoldButton(
-    "right",
-    value => {
-
-      steerRight = value;
-    }
-  );
-
-
-  bindHoldButton(
-    "gas",
-    value => {
-
-      gasPressed = value;
-    }
-  );
-
-
-  bindHoldButton(
-    "brake",
-    value => {
-
-      brakePressed = value;
-    }
-  );
-
-
-  /* KEYBOARD */
-
-  window.addEventListener(
-    "keydown",
-    event => {
-
-      const key =
-        event.key.toLowerCase();
-
+      const dz =
+        player.position.z -
+        enemy.position.z;
 
       if (
-        key === "arrowleft" ||
-        key === "a"
+        Math.abs(dx) <
+          1.8 &&
+        Math.abs(dz) <
+          2.6
       ) {
-
-        steerLeft = true;
-      }
-
-
-      if (
-        key === "arrowright" ||
-        key === "d"
-      ) {
-
-        steerRight = true;
-      }
-
-
-      if (
-        key === "arrowup" ||
-        key === "w"
-      ) {
-
-        gasPressed = true;
-      }
-
-
-      if (
-        key === "arrowdown" ||
-        key === "s" ||
-        key === " "
-      ) {
-
-        brakePressed = true;
-      }
-
-
-      if (
-        [
-          "arrowleft",
-          "arrowright",
-          "arrowup",
-          "arrowdown",
-          " "
-        ].includes(key)
-      ) {
-
-        event.preventDefault();
-      }
-    },
-    {
-      passive: false
-    }
-  );
-
-
-  window.addEventListener(
-    "keyup",
-    event => {
-
-      const key =
-        event.key.toLowerCase();
-
-
-      if (
-        key === "arrowleft" ||
-        key === "a"
-      ) {
-
-        steerLeft = false;
-      }
-
-
-      if (
-        key === "arrowright" ||
-        key === "d"
-      ) {
-
-        steerRight = false;
-      }
-
-
-      if (
-        key === "arrowup" ||
-        key === "w"
-      ) {
-
-        gasPressed = false;
-      }
-
-
-      if (
-        key === "arrowdown" ||
-        key === "s" ||
-        key === " "
-      ) {
-
-        brakePressed = false;
-      }
-    },
-    {
-      passive: false
-    }
-  );
-
-
-  window.addEventListener(
-    "blur",
-    () => {
-
-      stopAllInput();
-    }
-  );
-
-
-  document.addEventListener(
-    "visibilitychange",
-    () => {
-
-      if (
-        document.hidden
-      ) {
-
-        stopAllInput();
+        triggerGameOver();
       }
     }
   );
 }
 
+function collectCoin(coin) {
+  coin.userData.collected =
+    true;
+
+  coin.visible = false;
+
+  totalCoins += 1;
+
+  score += 100;
+
+  localStorage.setItem(
+    "lexaTotalCoins",
+    totalCoins
+  );
+
+  updateHUD();
+}
 
 /* =========================================================
-   RESIZE
+   GAME OVER
 ========================================================= */
 
-function onResize() {
-
+function triggerGameOver() {
   if (
-    !camera ||
-    !renderer
+    gameOver ||
+    gameWon
   ) {
-
     return;
   }
 
+  gameOver = true;
+  gameRunning = false;
 
-  camera.aspect =
-    window.innerWidth /
-    window.innerHeight;
+  saveCoins();
 
+  document
+    .getElementById(
+      "finalDistance"
+    ).textContent =
+    Math.floor(
+      levelDistance
+    ) + " m";
 
-  camera.updateProjectionMatrix();
+  document
+    .getElementById(
+      "finalScore"
+    ).textContent =
+    score;
 
+  document
+    .getElementById(
+      "finalBestScore"
+    ).textContent =
+    getBestScore();
 
-  renderer.setSize(
-    window.innerWidth,
-    window.innerHeight
+  document
+    .getElementById(
+      "finalLevel"
+    ).textContent =
+    currentLevel;
+
+  document
+    .getElementById(
+      "gameOver"
+    )
+    .classList.remove(
+      "hidden"
+    );
+}
+
+/* =========================================================
+   VICTORY SCREEN
+========================================================= */
+
+function showVictoryScreen() {
+  let overlay =
+    document.getElementById(
+      "victoryScreen"
+    );
+
+  if (!overlay) {
+    overlay =
+      document.createElement(
+        "div"
+      );
+
+    overlay.id =
+      "victoryScreen";
+
+    overlay.className =
+      "game-over";
+
+    overlay.innerHTML = `
+      <div class="game-over-box">
+
+        <div class="crash-title">
+          🏆 FINISH!
+        </div>
+
+        <div class="result-row">
+          <span>LEVEL</span>
+          <strong id="victoryLevel">1</strong>
+        </div>
+
+        <div class="result-row">
+          <span>NAME</span>
+          <strong id="victoryName">GREEN VALLEY</strong>
+        </div>
+
+        <div class="result-row">
+          <span>SCORE</span>
+          <strong id="victoryScore">0</strong>
+        </div>
+
+        <div class="result-row">
+          <span>TOTAL COINS</span>
+          <strong id="victoryCoins">0</strong>
+        </div>
+
+        <div id="victoryNextText"
+             style="
+               margin:20px 0;
+               font-weight:bold;
+               text-align:center;
+             ">
+        </div>
+
+        <button
+          id="nextLevelButton"
+          class="menu-button primary">
+          LEVEL BERIKUTNYA ▶
+        </button>
+
+        <button
+          id="victoryMenuButton"
+          class="menu-button">
+          🏠 MENU UTAMA
+        </button>
+
+      </div>
+    `;
+
+    document
+      .getElementById(
+        "game"
+      )
+      .appendChild(
+        overlay
+      );
+
+    document
+      .getElementById(
+        "nextLevelButton"
+      )
+      .addEventListener(
+        "click",
+        () => {
+          if (
+            currentLevel < 5
+          ) {
+            startLevel(
+              currentLevel + 1
+            );
+          } else {
+            showMenu();
+          }
+        }
+      );
+
+    document
+      .getElementById(
+        "victoryMenuButton"
+      )
+      .addEventListener(
+        "click",
+        () => {
+          showMenu();
+        }
+      );
+  }
+
+  document
+    .getElementById(
+      "victoryLevel"
+    ).textContent =
+    currentLevel;
+
+  document
+    .getElementById(
+      "victoryName"
+    ).textContent =
+    MAPS[currentLevel].name;
+
+  document
+    .getElementById(
+      "victoryScore"
+    ).textContent =
+    score;
+
+  document
+    .getElementById(
+      "victoryCoins"
+    ).textContent =
+    totalCoins;
+
+  const nextText =
+    document.getElementById(
+      "victoryNextText"
+    );
+
+  const nextButton =
+    document.getElementById(
+      "nextLevelButton"
+    );
+
+  if (
+    currentLevel < 5
+  ) {
+    nextText.textContent =
+      `LEVEL ${currentLevel + 1} TERBUKA!`;
+
+    nextButton.style.display =
+      "block";
+  } else {
+    nextText.textContent =
+      "🎉 SEMUA LEVEL SELESAI!";
+
+    nextButton.textContent =
+      "🏠 KEMBALI KE MENU";
+
+    nextButton.style.display =
+      "block";
+  }
+
+  overlay.classList.remove(
+    "hidden"
   );
 }
 
+/* =========================================================
+   MESSAGE
+========================================================= */
+
+function showMessage(
+  title,
+  subtitle
+) {
+  let message =
+    document.getElementById(
+      "gameMessage"
+    );
+
+  if (!message) {
+    message =
+      document.createElement(
+        "div"
+      );
+
+    message.id =
+      "gameMessage";
+
+    message.style.position =
+      "fixed";
+
+    message.style.top =
+      "35%";
+
+    message.style.left =
+      "50%";
+
+    message.style.transform =
+      "translate(-50%, -50%)";
+
+    message.style.textAlign =
+      "center";
+
+    message.style.color =
+      "white";
+
+    message.style.fontWeight =
+      "bold";
+
+    message.style.textShadow =
+      "0 3px 8px black";
+
+    message.style.zIndex =
+      "999";
+
+    message.innerHTML = `
+      <div id="messageTitle"
+           style="font-size:42px;">
+      </div>
+
+      <div id="messageSubtitle"
+           style="font-size:22px;">
+      </div>
+    `;
+
+    document.body.appendChild(
+      message
+    );
+  }
+
+  document
+    .getElementById(
+      "messageTitle"
+    ).textContent =
+    title;
+
+  document
+    .getElementById(
+      "messageSubtitle"
+    ).textContent =
+    subtitle;
+
+  message.style.opacity =
+    "1";
+
+  setTimeout(() => {
+    message.style.transition =
+      "opacity .5s";
+
+    message.style.opacity =
+      "0";
+  }, 1200);
+}
+
+/* =========================================================
+   LEVEL NOTIFICATION
+========================================================= */
+
+function showLevelNotification() {
+  const box =
+    document.getElementById(
+      "levelNotification"
+    );
+
+  if (!box) return;
+
+  document
+    .getElementById(
+      "levelNumber"
+    ).textContent =
+    "LEVEL " +
+    currentLevel;
+
+  document
+    .getElementById(
+      "levelName"
+    ).textContent =
+    MAPS[currentLevel].name;
+
+  box.classList.remove(
+    "hidden"
+  );
+
+  setTimeout(() => {
+    box.classList.add(
+      "hidden"
+    );
+  }, 2200);
+}
 
 /* =========================================================
    HUD
 ========================================================= */
 
 function updateHUD() {
-
   const speedElement =
     document.getElementById(
       "speed"
@@ -4162,329 +2310,623 @@ function updateHUD() {
       "level"
     );
 
-  const bestScoreElement =
+  const bestElement =
     document.getElementById(
       "bestScore"
     );
 
-
-  if (
-    speedElement
-  ) {
-
+  if (speedElement) {
     speedElement.textContent =
       Math.floor(
-        speed * 12
+        speed * 850
       );
   }
 
-
-  if (
-    distanceElement
-  ) {
-
+  if (distanceElement) {
     distanceElement.textContent =
       Math.floor(
-        distance
+        levelDistance
       );
   }
 
-
-  if (
-    scoreElement
-  ) {
-
+  if (scoreElement) {
     scoreElement.textContent =
-      Math.floor(
-        score
-      );
+      score;
   }
 
-
-  if (
-    levelElement
-  ) {
-
+  if (levelElement) {
     levelElement.textContent =
-      currentMap;
+      currentLevel;
   }
 
-
-  if (
-    bestScoreElement
-  ) {
-
-    bestScoreElement.textContent =
-      Math.floor(
-        bestScore
-      );
+  if (bestElement) {
+    bestElement.textContent =
+      getBestScore();
   }
+
+  updateCoinHUD();
 }
 
-
-/* =========================================================
-   LEVEL UPDATE
-========================================================= */
-
-function updateLevel() {
-
-  const newMap =
-    THREE.MathUtils.clamp(
-      Math.floor(
-        distance / 100
-      ) + 1,
-      1,
-      5
+function updateCoinHUD() {
+  let coinHUD =
+    document.getElementById(
+      "coinHUD"
     );
 
+  if (!coinHUD) {
+    coinHUD =
+      document.createElement(
+        "div"
+      );
 
-  if (
-    newMap !==
-    currentMap
-  ) {
+    coinHUD.id =
+      "coinHUD";
 
-    currentMap =
-      newMap;
+    coinHUD.style.position =
+      "fixed";
 
-    level =
-      newMap;
+    coinHUD.style.top =
+      "115px";
 
+    coinHUD.style.right =
+      "15px";
 
-    resetEnemies();
+    coinHUD.style.padding =
+      "8px 14px";
 
-    applyMapVisuals();
+    coinHUD.style.background =
+      "rgba(0,0,0,.55)";
+
+    coinHUD.style.borderRadius =
+      "12px";
+
+    coinHUD.style.color =
+      "white";
+
+    coinHUD.style.fontWeight =
+      "bold";
+
+    coinHUD.style.fontSize =
+      "18px";
+
+    coinHUD.style.zIndex =
+      "20";
+
+    document.body.appendChild(
+      coinHUD
+    );
   }
 
-
-  checkUnlock();
+  coinHUD.textContent =
+    "🪙 " + totalCoins;
 }
 
-
 /* =========================================================
-   UNLOCK
+   SCORE
 ========================================================= */
 
-function checkUnlock() {
+function getBestScore() {
+  return Number(
+    localStorage.getItem(
+      "lexaBestScore" +
+        currentLevel
+    ) || 0
+  );
+}
 
-  let newUnlocked =
-    unlockedLevel;
-
+function saveBestScore() {
+  const best =
+    getBestScore();
 
   if (
-    distance >= 100
+    score > best
   ) {
-
-    newUnlocked =
-      Math.max(
-        newUnlocked,
-        2
-      );
+    localStorage.setItem(
+      "lexaBestScore" +
+        currentLevel,
+      score
+    );
   }
+}
 
+function saveCoins() {
+  localStorage.setItem(
+    "lexaTotalCoins",
+    totalCoins
+  );
 
-  if (
-    distance >= 200
-  ) {
+  saveBestScore();
+}
 
-    newUnlocked =
-      Math.max(
-        newUnlocked,
-        3
-      );
-  }
+/* =========================================================
+   LEVEL UNLOCK
+========================================================= */
 
+function getUnlockedLevel() {
+  return Number(
+    localStorage.getItem(
+      "lexaUnlockedLevel"
+    ) || 1
+  );
+}
 
-  if (
-    distance >= 300
-  ) {
-
-    newUnlocked =
-      Math.max(
-        newUnlocked,
-        4
-      );
-  }
-
-
-  if (
-    distance >= 400
-  ) {
-
-    newUnlocked =
-      Math.max(
-        newUnlocked,
-        5
-      );
-  }
-
+function unlockLevel(level) {
+  const unlocked =
+    getUnlockedLevel();
 
   if (
-    newUnlocked !==
-    unlockedLevel
+    level > unlocked
   ) {
-
-    unlockedLevel =
-      newUnlocked;
-
-
     localStorage.setItem(
       "lexaUnlockedLevel",
-      unlockedLevel
+      Math.min(
+        level,
+        5
+      )
+    );
+  }
+
+  updateMenuLevel();
+}
+
+/* =========================================================
+   MENU
+========================================================= */
+
+function showMenu() {
+  gameRunning = false;
+
+  hideAllScreens();
+
+  const mainMenu =
+    document.getElementById(
+      "mainMenu"
+    );
+
+  if (mainMenu) {
+    mainMenu.classList.remove(
+      "hidden"
+    );
+  }
+
+  updateMenuLevel();
+}
+
+function showLevelMenu() {
+  hideAllScreens();
+
+  const levelMenu =
+    document.getElementById(
+      "levelMenu"
+    );
+
+  if (levelMenu) {
+    levelMenu.classList.remove(
+      "hidden"
+    );
+  }
+
+  buildLevelList();
+}
+
+function hideAllScreens() {
+  [
+    "mainMenu",
+    "levelMenu",
+    "gameOver",
+    "victoryScreen"
+  ].forEach(id => {
+    const el =
+      document.getElementById(
+        id
+      );
+
+    if (el) {
+      el.classList.add(
+        "hidden"
+      );
+    }
+  });
+
+  const game =
+    document.getElementById(
+      "game"
+    );
+
+  if (game) {
+    game.classList.remove(
+      "hidden"
     );
   }
 }
 
+function updateMenuLevel() {
+  const element =
+    document.getElementById(
+      "menuUnlockedLevel"
+    );
+
+  if (element) {
+    element.textContent =
+      getUnlockedLevel();
+  }
+}
+
+function buildLevelList() {
+  const list =
+    document.getElementById(
+      "levelList"
+    );
+
+  if (!list) return;
+
+  list.innerHTML = "";
+
+  const unlocked =
+    getUnlockedLevel();
+
+  for (
+    let level = 1;
+    level <= 5;
+    level++
+  ) {
+    const card =
+      document.createElement(
+        "div"
+      );
+
+    card.className =
+      "level-card";
+
+    if (
+      level <= unlocked
+    ) {
+      card.classList.add(
+        "unlocked"
+      );
+
+      card.innerHTML = `
+        <div class="level-number">
+          LEVEL ${level}
+        </div>
+
+        <div class="level-info">
+
+          <div class="level-name">
+            ${MAPS[level].name}
+          </div>
+
+          <div class="level-description">
+            ${MAPS[level].description}
+          </div>
+
+          <div class="level-status">
+            🔓 TERBUKA
+          </div>
+
+        </div>
+      `;
+
+      card.addEventListener(
+        "click",
+        () => {
+          startLevel(
+            level
+          );
+        }
+      );
+    } else {
+      card.classList.add(
+        "locked"
+      );
+
+      card.innerHTML = `
+        <div class="level-number">
+          LEVEL ${level}
+        </div>
+
+        <div class="level-info">
+
+          <div class="level-name">
+            ${MAPS[level].name}
+          </div>
+
+          <div class="level-description">
+            ${MAPS[level].description}
+          </div>
+
+          <div class="level-status">
+            🔒 TERKUNCI
+          </div>
+
+        </div>
+      `;
+    }
+
+    list.appendChild(
+      card
+    );
+  }
+}
 
 /* =========================================================
-   GAME OVER
+   CONTROLS
 ========================================================= */
 
-function endGame() {
-
-  if (
-    gameOverState
-  ) {
-
-    return;
-  }
-
-
-  gameOverState =
-    true;
-
-  speed =
-    0;
-
-
-  stopAllInput();
-
-
-  if (
-    score >
-    bestScore
-  ) {
-
-    bestScore =
-      Math.floor(
-        score
-      );
-
-
-    localStorage.setItem(
-      "lexaBestScore",
-      bestScore
-    );
-  }
-
-
-  const finalDistance =
+function setupControls() {
+  const gas =
     document.getElementById(
-      "finalDistance"
+      "gas"
     );
 
-  const finalScore =
+  const brake =
     document.getElementById(
-      "finalScore"
+      "brake"
     );
 
-  const finalBestScore =
+  const left =
     document.getElementById(
-      "finalBestScore"
+      "left"
     );
 
-  const finalLevel =
+  const right =
     document.getElementById(
-      "finalLevel"
+      "right"
     );
 
+  setupButton(
+    gas,
+    () =>
+      gasPressed = true,
+    () =>
+      gasPressed = false
+  );
 
-  if (
-    finalDistance
-  ) {
+  setupButton(
+    brake,
+    () =>
+      brakePressed = true,
+    () =>
+      brakePressed = false
+  );
 
-    finalDistance.textContent =
-      `${Math.floor(
-        distance
-      )} m`;
+  setupButton(
+    left,
+    () =>
+      leftPressed = true,
+    () =>
+      leftPressed = false
+  );
+
+  setupButton(
+    right,
+    () =>
+      rightPressed = true,
+    () =>
+      rightPressed = false
+  );
+
+  window.addEventListener(
+    "keydown",
+    event => {
+      if (
+        event.key === "ArrowUp" ||
+        event.key.toLowerCase() ===
+          "w"
+      ) {
+        gasPressed = true;
+      }
+
+      if (
+        event.key === "ArrowDown" ||
+        event.key.toLowerCase() ===
+          "s"
+      ) {
+        brakePressed = true;
+      }
+
+      if (
+        event.key === "ArrowLeft" ||
+        event.key.toLowerCase() ===
+          "a"
+      ) {
+        leftPressed = true;
+      }
+
+      if (
+        event.key === "ArrowRight" ||
+        event.key.toLowerCase() ===
+          "d"
+      ) {
+        rightPressed = true;
+      }
+    }
+  );
+
+  window.addEventListener(
+    "keyup",
+    event => {
+      if (
+        event.key === "ArrowUp" ||
+        event.key.toLowerCase() ===
+          "w"
+      ) {
+        gasPressed = false;
+      }
+
+      if (
+        event.key === "ArrowDown" ||
+        event.key.toLowerCase() ===
+          "s"
+      ) {
+        brakePressed = false;
+      }
+
+      if (
+        event.key === "ArrowLeft" ||
+        event.key.toLowerCase() ===
+          "a"
+      ) {
+        leftPressed = false;
+      }
+
+      if (
+        event.key === "ArrowRight" ||
+        event.key.toLowerCase() ===
+          "d"
+      ) {
+        rightPressed = false;
+      }
+    }
+  );
+
+  /* MENU */
+
+  const playButton =
+    document.getElementById(
+      "playButton"
+    );
+
+  if (playButton) {
+    playButton.addEventListener(
+      "click",
+      () => {
+        startLevel(
+          getUnlockedLevel()
+        );
+      }
+    );
   }
 
+  const levelButton =
+    document.getElementById(
+      "levelButton"
+    );
 
-  if (
-    finalScore
-  ) {
-
-    finalScore.textContent =
-      Math.floor(
-        score
-      );
+  if (levelButton) {
+    levelButton.addEventListener(
+      "click",
+      showLevelMenu
+    );
   }
 
+  const backMenu =
+    document.getElementById(
+      "backMenuButton"
+    );
 
-  if (
-    finalBestScore
-  ) {
-
-    finalBestScore.textContent =
-      Math.floor(
-        bestScore
-      );
+  if (backMenu) {
+    backMenu.addEventListener(
+      "click",
+      showMenu
+    );
   }
 
+  const restart =
+    document.getElementById(
+      "restartButton"
+    );
 
-  if (
-    finalLevel
-  ) {
-
-    finalLevel.textContent =
-      currentMap;
+  if (restart) {
+    restart.addEventListener(
+      "click",
+      () => {
+        startLevel(
+          selectedStartLevel
+        );
+      }
+    );
   }
 
+  const menuButton =
+    document.getElementById(
+      "menuButton"
+    );
 
-  gameOver.classList.remove(
-    "hidden"
+  if (menuButton) {
+    menuButton.addEventListener(
+      "click",
+      showMenu
+    );
+  }
+}
+
+function setupButton(
+  element,
+  onDown,
+  onUp
+) {
+  if (!element) return;
+
+  element.addEventListener(
+    "pointerdown",
+    event => {
+      event.preventDefault();
+      onDown();
+    }
+  );
+
+  element.addEventListener(
+    "pointerup",
+    event => {
+      event.preventDefault();
+      onUp();
+    }
+  );
+
+  element.addEventListener(
+    "pointercancel",
+    onUp
+  );
+
+  element.addEventListener(
+    "pointerleave",
+    event => {
+      if (
+        event.buttons === 0
+      ) {
+        onUp();
+      }
+    }
   );
 }
 
-
 /* =========================================================
-   GAME LOOP
+   UTILITIES
 ========================================================= */
 
-function animate() {
+function clearGroup(group) {
+  if (!group) return;
 
-  requestAnimationFrame(
-    animate
-  );
+  while (
+    group.children.length
+  ) {
+    group.remove(
+      group.children[0]
+    );
+  }
+}
 
+function onResize() {
+  camera.aspect =
+    window.innerWidth /
+    window.innerHeight;
 
-  updatePlayer();
+  camera.updateProjectionMatrix();
 
-  updateWorldMovement();
-
-  updateEnemies();
-
-  updateLevel();
-
-  updateParticles();
-
-  updateCamera();
-
-  updateHUD();
-
-
-  renderer.render(
-    scene,
-    camera
+  renderer.setSize(
+    window.innerWidth,
+    window.innerHeight
   );
 }
 
-
 /* =========================================================
-   START
+   STARTUP
 ========================================================= */
 
-setupControls();
-
-initThree();
-
-showMainMenu();
+document.addEventListener(
+  "DOMContentLoaded",
+  () => {
+    updateMenuLevel();
+  }
+);
