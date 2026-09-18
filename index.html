@@ -1,3 +1,4 @@
+```html
 <!DOCTYPE html>
 <html lang="id">
 <head>
@@ -9,9 +10,12 @@
 
 <body>
 
-  <!-- MAIN MENU -->
+  <!-- =========================
+       MAIN MENU
+  ========================== -->
   <div id="mainMenu" class="menu-screen">
     <div class="menu-box">
+
       <div class="game-logo">LEXA</div>
       <div class="game-title">SPEED RACE 3D</div>
       <div class="game-subtitle">HIGHWAY RACING</div>
@@ -27,11 +31,16 @@
       <div class="menu-info">
         Level terbuka: <span id="menuUnlockedLevel">1</span>/5
       </div>
+
     </div>
   </div>
 
-  <!-- LEVEL SELECT -->
+
+  <!-- =========================
+       LEVEL SELECT
+  ========================== -->
   <div id="levelMenu" class="menu-screen hidden">
+
     <div class="menu-box level-box">
 
       <div class="game-title">PILIH LEVEL</div>
@@ -41,15 +50,25 @@
       <button id="backMenuButton" class="menu-button">
         ◀ KEMBALI
       </button>
+
     </div>
+
   </div>
 
-  <!-- GAME -->
+
+  <!-- =========================
+       GAME
+  ========================== -->
   <div id="game" class="hidden">
 
-    <div id="loading">LOADING...</div>
+    <div id="loading">
+      LOADING...
+    </div>
 
-    <!-- HUD -->
+
+    <!-- =========================
+         HUD
+    ========================== -->
     <div id="hud">
 
       <div class="hud-item">
@@ -81,18 +100,59 @@
 
     </div>
 
-    <!-- LEVEL NOTIFICATION -->
-    <div id="levelNotification" class="level-notification hidden">
-      <div id="levelNumber">LEVEL 1</div>
-      <div id="levelName">GREEN VALLEY</div>
+
+    <!-- =========================
+         NITRO BAR
+    ========================== -->
+    <div id="nitroHud">
+
+      <div class="nitro-title">
+        🚀 NITRO
+      </div>
+
+      <div class="nitro-bar">
+        <div id="nitroFill"></div>
+      </div>
+
+      <div id="nitroPercent">
+        100%
+      </div>
+
     </div>
 
-    <!-- GAME OVER -->
+
+    <!-- =========================
+         LEVEL NOTIFICATION
+    ========================== -->
+    <div id="levelNotification" class="level-notification hidden">
+
+      <div id="levelNumber">
+        LEVEL 1
+      </div>
+
+      <div id="levelName">
+        GREEN VALLEY
+      </div>
+
+    </div>
+
+
+    <!-- =========================
+         SPEED EFFECT
+    ========================== -->
+    <div id="speedLines"></div>
+
+
+    <!-- =========================
+         GAME OVER
+    ========================== -->
     <div id="gameOver" class="game-over hidden">
 
       <div class="game-over-box">
 
-        <div class="crash-title">💥 CRASH!</div>
+        <div class="crash-title">
+          💥 CRASH!
+        </div>
 
         <div class="result-row">
           <span>Distance</span>
@@ -126,7 +186,10 @@
 
     </div>
 
-    <!-- MOBILE CONTROLS -->
+
+    <!-- =========================
+         MOBILE CONTROLS
+    ========================== -->
     <div id="mobileControls">
 
       <button id="left" class="control-button left-button">
@@ -145,11 +208,17 @@
         GAS
       </button>
 
+      <button id="nitro" class="control-button nitro-button">
+        🚀 NITRO
+      </button>
+
     </div>
 
   </div>
+
 
   <script type="module" src="./game.js"></script>
 
 </body>
 </html>
+```

@@ -1,3 +1,4 @@
+
 * {
   box-sizing: border-box;
   -webkit-tap-highlight-color: transparent;
@@ -12,27 +13,63 @@ body {
   overflow: hidden;
   font-family: Arial, Helvetica, sans-serif;
   background: #050505;
-  color: white;
   user-select: none;
+  touch-action: none;
 }
 
-body {
-  position: relative;
-}
-
-canvas {
-  display: block;
-  width: 100%;
-  height: 100%;
-}
 
 /* =========================
-   UTILITY
+   HIDDEN
 ========================= */
 
 .hidden {
   display: none !important;
 }
+
+
+/* =========================
+   GAME
+========================= */
+
+#game {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #000;
+}
+
+#game canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+
+/* =========================
+   LOADING
+========================= */
+
+#loading {
+  position: absolute;
+  inset: 0;
+  z-index: 1000;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  background: #000;
+  color: #fff;
+
+  font-size: 24px;
+  font-weight: 900;
+  letter-spacing: 3px;
+}
+
 
 /* =========================
    MAIN MENU
@@ -41,278 +78,226 @@ canvas {
 .menu-screen {
   position: fixed;
   inset: 0;
-  z-index: 1000;
+  z-index: 2000;
 
   display: flex;
   justify-content: center;
   align-items: center;
 
   background:
-    radial-gradient(circle at center, rgba(0, 220, 255, 0.15), transparent 35%),
-    linear-gradient(
-      135deg,
-      rgba(2, 15, 30, 0.98),
-      rgba(5, 5, 10, 0.99)
-    );
+    radial-gradient(circle at center, rgba(40, 80, 130, 0.45), transparent 55%),
+    linear-gradient(180deg, #07111f, #020305);
+
+  overflow: hidden;
 }
 
 .menu-box {
-  width: min(90vw, 430px);
+  width: min(430px, 90vw);
   padding: 35px 25px;
 
   text-align: center;
 
-  background: rgba(10, 18, 30, 0.92);
-  border: 2px solid rgba(0, 229, 255, 0.55);
-  border-radius: 24px;
+  border: 2px solid rgba(255,255,255,0.15);
+  border-radius: 25px;
+
+  background: rgba(10, 15, 25, 0.88);
 
   box-shadow:
-    0 0 35px rgba(0, 229, 255, 0.25),
-    inset 0 0 25px rgba(0, 229, 255, 0.05);
+    0 25px 80px rgba(0,0,0,0.65),
+    inset 0 0 40px rgba(255,255,255,0.03);
 
-  backdrop-filter: blur(10px);
+  backdrop-filter: blur(12px);
 }
 
 .game-logo {
-  font-size: clamp(42px, 12vw, 70px);
-  font-weight: 900;
-  letter-spacing: 8px;
-  color: #ff3030;
+  font-size: 64px;
+  font-weight: 1000;
+  font-style: italic;
+  letter-spacing: 5px;
+
+  color: #e63946;
 
   text-shadow:
-    0 0 10px rgba(255, 30, 30, 0.8),
-    0 0 30px rgba(255, 30, 30, 0.35);
-
-  transform: skew(-8deg);
+    4px 4px 0 #650812,
+    0 0 25px rgba(230,57,70,0.7);
 }
 
 .game-title {
-  margin-top: 5px;
+  margin-top: -5px;
 
-  font-size: clamp(25px, 7vw, 38px);
-  font-weight: 900;
-  letter-spacing: 3px;
+  font-size: 27px;
+  font-weight: 1000;
+  letter-spacing: 2px;
 
   color: white;
-
-  text-shadow:
-    0 0 8px rgba(255, 255, 255, 0.5);
 }
 
 .game-subtitle {
-  margin-top: 8px;
+  margin-top: 7px;
   margin-bottom: 30px;
 
-  font-size: 12px;
-  letter-spacing: 6px;
+  color: #8ecae6;
 
-  color: #00e5ff;
+  font-size: 13px;
+  font-weight: bold;
+  letter-spacing: 4px;
 }
+
+
+/* =========================
+   MENU BUTTON
+========================= */
 
 .menu-button {
   width: 100%;
-  min-height: 54px;
+  min-height: 56px;
 
   margin-top: 12px;
+  padding: 12px 18px;
 
-  border: 1px solid rgba(0, 229, 255, 0.5);
+  border: 1px solid rgba(255,255,255,0.15);
   border-radius: 14px;
 
-  background: rgba(0, 80, 100, 0.3);
+  background: linear-gradient(180deg, #252b35, #151920);
 
   color: white;
 
   font-size: 17px;
-  font-weight: 800;
-  letter-spacing: 1px;
+  font-weight: 900;
 
   cursor: pointer;
 
+  box-shadow:
+    0 8px 20px rgba(0,0,0,0.35);
+
   transition:
-    transform 0.12s ease,
-    background 0.12s ease,
-    box-shadow 0.12s ease;
+    transform 0.12s,
+    filter 0.12s;
+}
+
+.menu-button:hover {
+  filter: brightness(1.2);
 }
 
 .menu-button:active {
   transform: scale(0.96);
 }
 
-.menu-button:hover {
-  background: rgba(0, 150, 180, 0.35);
-  box-shadow: 0 0 18px rgba(0, 229, 255, 0.2);
-}
-
 .menu-button.primary {
-  background:
-    linear-gradient(
-      135deg,
-      #e53935,
-      #ff7043
-    );
+  background: linear-gradient(180deg, #ff4757, #c1121f);
 
-  border-color: #ff8a65;
+  border-color: rgba(255,255,255,0.25);
 
   box-shadow:
-    0 0 18px rgba(255, 60, 40, 0.35);
-}
-
-.menu-button.primary:hover {
-  background:
-    linear-gradient(
-      135deg,
-      #ff5252,
-      #ff8a65
-    );
+    0 8px 25px rgba(230,57,70,0.35);
 }
 
 .menu-info {
-  margin-top: 25px;
+  margin-top: 20px;
 
-  color: #9aa7b2;
+  color: #aeb7c4;
   font-size: 13px;
 }
+
 
 /* =========================
    LEVEL MENU
 ========================= */
 
-.level-box {
-  max-height: 90vh;
-  overflow-y: auto;
-}
-
 .level-list {
+  margin-top: 25px;
+
   display: flex;
   flex-direction: column;
   gap: 10px;
 
-  margin: 20px 0;
+  max-height: 55vh;
+  overflow-y: auto;
 }
 
-.level-card {
-  position: relative;
-
-  display: flex;
-  align-items: center;
-
+.level-button {
   width: 100%;
-  min-height: 75px;
+  padding: 15px;
 
-  padding: 12px 15px;
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 13px;
 
-  border-radius: 15px;
-
-  border: 1px solid rgba(255, 255, 255, 0.15);
-
-  background:
-    linear-gradient(
-      90deg,
-      rgba(255, 255, 255, 0.08),
-      rgba(255, 255, 255, 0.03)
-    );
+  background: #171c24;
 
   color: white;
 
-  text-align: left;
+  font-size: 16px;
+  font-weight: 900;
 
   cursor: pointer;
-
-  transition:
-    transform 0.12s ease,
-    background 0.12s ease;
 }
 
-.level-card:not(.locked):active {
-  transform: scale(0.97);
+.level-button.unlocked {
+  background: linear-gradient(90deg, #1769aa, #124e78);
 }
 
-.level-card:not(.locked):hover {
-  background: rgba(0, 229, 255, 0.12);
-}
-
-.level-card.locked {
-  opacity: 0.45;
+.level-button.locked {
+  background: #101217;
+  color: #68717e;
   cursor: not-allowed;
 }
 
-.level-number {
-  width: 55px;
-
-  font-size: 30px;
-  font-weight: 900;
-
-  color: #00e5ff;
-
-  text-align: center;
+.level-button:active {
+  transform: scale(0.97);
 }
 
-.level-card.locked .level-number {
-  color: #777;
-}
-
-.level-info {
-  flex: 1;
-
-  padding-left: 10px;
-}
-
-.level-name {
-  font-size: 17px;
-  font-weight: 900;
-}
-
-.level-description {
-  margin-top: 4px;
-
-  font-size: 11px;
-  color: #9da8b0;
-}
-
-.level-status {
-  font-size: 22px;
-}
 
 /* =========================
    HUD
 ========================= */
 
 #hud {
-  position: fixed;
-  z-index: 20;
+  position: absolute;
 
-  top: 10px;
+  top: 12px;
   left: 50%;
 
   transform: translateX(-50%);
 
+  z-index: 100;
+
   display: flex;
   gap: 8px;
 
-  width: min(96vw, 650px);
+  width: min(700px, 96vw);
 
   justify-content: center;
+
+  pointer-events: none;
 }
 
 .hud-item {
-  min-width: 70px;
-  padding: 6px 8px;
+  min-width: 85px;
 
-  border-radius: 10px;
-
-  background: rgba(0, 0, 0, 0.48);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  padding: 7px 10px;
 
   text-align: center;
 
-  backdrop-filter: blur(5px);
+  border-radius: 12px;
+
+  background: rgba(5, 10, 15, 0.72);
+
+  border: 1px solid rgba(255,255,255,0.15);
+
+  box-shadow: 0 5px 18px rgba(0,0,0,0.25);
+
+  backdrop-filter: blur(6px);
+
+  color: white;
 }
 
 .hud-item span {
   display: block;
 
-  font-size: 8px;
-  color: #aeb8c0;
+  color: #aeb9c7;
+
+  font-size: 9px;
+  font-weight: bold;
   letter-spacing: 1px;
 }
 
@@ -321,146 +306,291 @@ canvas {
 
   margin-top: 1px;
 
-  font-size: 18px;
-  line-height: 20px;
+  color: white;
+
+  font-size: 19px;
+  font-weight: 1000;
 }
 
 .hud-item small {
-  font-size: 7px;
-  color: #7f8b94;
+  color: #9ba5b2;
+
+  font-size: 8px;
+  font-weight: bold;
 }
+
 
 /* =========================
-   LOADING
+   NITRO HUD
 ========================= */
 
-#loading {
-  position: fixed;
-  z-index: 500;
+#nitroHud {
+  position: absolute;
 
-  inset: 0;
+  top: 105px;
+  left: 50%;
 
-  display: flex;
-  justify-content: center;
-  align-items: center;
+  transform: translateX(-50%);
 
-  background: #050505;
+  z-index: 110;
 
-  font-size: 22px;
-  font-weight: 900;
-  letter-spacing: 3px;
+  width: min(300px, 60vw);
+
+  padding: 7px 10px;
+
+  border-radius: 14px;
+
+  background: rgba(0,0,0,0.55);
+
+  border: 1px solid rgba(255,255,255,0.15);
+
+  backdrop-filter: blur(7px);
+
+  pointer-events: none;
 }
+
+.nitro-title {
+  color: #8ed8ff;
+
+  font-size: 11px;
+  font-weight: 1000;
+
+  letter-spacing: 2px;
+
+  text-align: center;
+
+  margin-bottom: 5px;
+}
+
+.nitro-bar {
+  width: 100%;
+  height: 12px;
+
+  overflow: hidden;
+
+  border-radius: 20px;
+
+  background: #16191f;
+
+  border: 1px solid rgba(255,255,255,0.15);
+}
+
+#nitroFill {
+  width: 100%;
+  height: 100%;
+
+  border-radius: 20px;
+
+  background: linear-gradient(
+    90deg,
+    #00b4ff,
+    #00e5ff,
+    #ffffff
+  );
+
+  box-shadow:
+    0 0 12px rgba(0,200,255,0.8);
+
+  transition: width 0.08s linear;
+}
+
+#nitroPercent {
+  margin-top: 3px;
+
+  color: #d9f8ff;
+
+  font-size: 9px;
+  font-weight: 900;
+
+  text-align: center;
+}
+
 
 /* =========================
    LEVEL NOTIFICATION
 ========================= */
 
 .level-notification {
-  position: fixed;
-  z-index: 100;
+  position: absolute;
 
-  top: 50%;
+  top: 30%;
   left: 50%;
 
   transform: translate(-50%, -50%);
 
-  padding: 25px 45px;
+  z-index: 500;
+
+  padding: 20px 35px;
 
   text-align: center;
 
-  background: rgba(0, 0, 0, 0.72);
+  border-radius: 20px;
 
-  border: 2px solid #00e5ff;
-  border-radius: 18px;
+  background: rgba(0,0,0,0.78);
+
+  border: 2px solid rgba(255,255,255,0.2);
 
   box-shadow:
-    0 0 30px rgba(0, 229, 255, 0.4);
+    0 15px 50px rgba(0,0,0,0.5);
+
+  color: white;
+
+  animation: levelPop 2.2s ease forwards;
+
+  pointer-events: none;
 }
 
-.level-notification #levelNumber {
-  font-size: 34px;
-  font-weight: 900;
-  color: #00e5ff;
+#levelNumber {
+  color: #ffca28;
+
+  font-size: 32px;
+  font-weight: 1000;
+
+  letter-spacing: 3px;
 }
 
-.level-notification #levelName {
-  margin-top: 8px;
+#levelName {
+  margin-top: 5px;
 
-  font-size: 18px;
-  font-weight: 700;
+  color: white;
+
+  font-size: 15px;
+  font-weight: bold;
 
   letter-spacing: 2px;
 }
+
+@keyframes levelPop {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -40%) scale(0.7);
+  }
+
+  15% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1.05);
+  }
+
+  75% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -55%) scale(0.95);
+  }
+}
+
+
+/* =========================
+   SPEED LINES
+========================= */
+
+#speedLines {
+  position: absolute;
+  inset: 0;
+
+  z-index: 50;
+
+  pointer-events: none;
+
+  opacity: 0;
+
+  background:
+    linear-gradient(
+      90deg,
+      transparent 0%,
+      rgba(255,255,255,0.04) 30%,
+      transparent 50%,
+      rgba(255,255,255,0.04) 70%,
+      transparent 100%
+    );
+
+  mix-blend-mode: screen;
+}
+
 
 /* =========================
    GAME OVER
 ========================= */
 
 .game-over {
-  position: fixed;
-  z-index: 200;
-
+  position: absolute;
   inset: 0;
 
+  z-index: 1500;
+
   display: flex;
+
   justify-content: center;
   align-items: center;
 
-  background: rgba(0, 0, 0, 0.58);
+  background: rgba(0,0,0,0.6);
 }
 
 .game-over-box {
-  width: min(90vw, 390px);
+  width: min(400px, 88vw);
 
-  padding: 25px;
+  padding: 28px;
 
   border-radius: 22px;
 
-  background: rgba(12, 15, 20, 0.95);
+  background: rgba(12,15,20,0.95);
 
-  border: 2px solid rgba(255, 60, 60, 0.6);
+  border: 1px solid rgba(255,255,255,0.18);
 
   box-shadow:
-    0 0 35px rgba(255, 40, 40, 0.25);
+    0 20px 70px rgba(0,0,0,0.7);
 
-  text-align: center;
+  color: white;
 }
 
 .crash-title {
-  margin-bottom: 22px;
+  margin-bottom: 20px;
 
-  font-size: 36px;
-  font-weight: 900;
+  text-align: center;
 
-  color: #ff5252;
+  color: #ff4757;
+
+  font-size: 34px;
+  font-weight: 1000;
+
+  text-shadow:
+    0 0 20px rgba(255,71,87,0.7);
 }
 
 .result-row {
   display: flex;
+
   justify-content: space-between;
 
-  padding: 10px 5px;
+  padding: 11px 0;
 
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  border-bottom: 1px solid rgba(255,255,255,0.08);
 
-  color: #aab4bc;
+  color: #aeb7c4;
 }
 
 .result-row strong {
   color: white;
 }
 
+
 /* =========================
    MOBILE CONTROLS
 ========================= */
 
 #mobileControls {
-  position: fixed;
-  z-index: 50;
+  position: absolute;
 
-  inset: auto 0 15px 0;
+  left: 0;
+  right: 0;
+  bottom: 15px;
 
-  height: 130px;
+  height: 145px;
+
+  z-index: 300;
 
   pointer-events: none;
 }
@@ -468,66 +598,154 @@ canvas {
 .control-button {
   position: absolute;
 
-  width: 74px;
-  height: 74px;
-
-  border-radius: 50%;
-
-  border: 2px solid rgba(255, 255, 255, 0.25);
+  border: 1px solid rgba(255,255,255,0.25);
 
   color: white;
 
-  font-weight: 900;
-  font-size: 22px;
+  font-weight: 1000;
 
-  background: rgba(0, 0, 0, 0.48);
-
-  backdrop-filter: blur(5px);
+  cursor: pointer;
 
   pointer-events: auto;
 
   touch-action: none;
 
-  user-select: none;
+  box-shadow:
+    0 8px 25px rgba(0,0,0,0.35),
+    inset 0 0 15px rgba(255,255,255,0.05);
+
+  transition:
+    transform 0.08s,
+    filter 0.08s;
 }
 
-.control-button:active {
-  transform: scale(0.92);
+.control-button:active,
+.control-button.active {
+  transform: scale(0.9);
+  filter: brightness(1.35);
 }
+
+
+/* LEFT */
 
 .left-button {
   left: 20px;
-  bottom: 15px;
+  bottom: 25px;
+
+  width: 75px;
+  height: 75px;
+
+  border-radius: 50%;
+
+  background: rgba(25,35,50,0.85);
+
+  font-size: 30px;
 }
+
+
+/* RIGHT */
 
 .right-button {
   left: 105px;
-  bottom: 15px;
+  bottom: 25px;
+
+  width: 75px;
+  height: 75px;
+
+  border-radius: 50%;
+
+  background: rgba(25,35,50,0.85);
+
+  font-size: 30px;
 }
 
-.gas-button {
-  right: 20px;
-  bottom: 15px;
 
-  width: 88px;
-  height: 88px;
-
-  background: rgba(0, 130, 70, 0.55);
-  border-color: rgba(0, 255, 150, 0.45);
-}
+/* BRAKE */
 
 .brake-button {
-  right: 118px;
+  right: 170px;
   bottom: 15px;
 
-  width: 70px;
-  height: 70px;
+  width: 85px;
+  height: 55px;
+
+  border-radius: 15px;
+
+  background: rgba(120,20,25,0.9);
+
+  font-size: 13px;
+}
+
+
+/* GAS */
+
+.gas-button {
+  right: 75px;
+  bottom: 25px;
+
+  width: 85px;
+  height: 85px;
+
+  border-radius: 50%;
+
+  background:
+    radial-gradient(circle, #ff5968, #c1121f);
+
+  font-size: 15px;
+}
+
+
+/* NITRO */
+
+.nitro-button {
+  right: 18px;
+  bottom: 120px;
+
+  width: 105px;
+  height: 48px;
+
+  border-radius: 14px;
+
+  background:
+    linear-gradient(180deg, #00c6ff, #0066cc);
 
   font-size: 12px;
 
-  background: rgba(150, 30, 30, 0.55);
-  border-color: rgba(255, 80, 80, 0.45);
+  box-shadow:
+    0 0 18px rgba(0,190,255,0.5),
+    0 8px 20px rgba(0,0,0,0.4);
 }
+
+
+/* =========================
+   NITRO ACTIVE
+========================= */
+
+body.nitro-active #nitroHud {
+  border-color: rgba(0,220,255,0.8);
+
+  box-shadow:
+    0 0 20px rgba(0,200,255,0.5);
+}
+
+body.nitro-active .nitro-button {
+  animation: nitroPulse 0.25s infinite alternate;
+}
+
+body.nitro-active #speedLines {
+  opacity: 0.25;
+}
+
+@keyframes nitroPulse {
+  from {
+    transform: scale(1);
+  }
+
+  to {
+    transform: scale(1.06);
+  }
+}
+
 
 /* =========================
    DESKTOP
@@ -536,29 +754,46 @@ canvas {
 @media (min-width: 900px) {
 
   #mobileControls {
-    opacity: 0.7;
+    bottom: 25px;
   }
 
-  .control-button {
-    width: 64px;
-    height: 64px;
+  .left-button {
+    left: 35px;
   }
+
+  .right-button {
+    left: 125px;
+  }
+
+  .brake-button {
+    right: 205px;
+  }
+
+  .gas-button {
+    right: 100px;
+  }
+
+  .nitro-button {
+    right: 30px;
+  }
+
 }
 
+
 /* =========================
-   SMALL MOBILE
+   SMALL SCREEN
 ========================= */
 
-@media (max-width: 420px) {
+@media (max-width: 500px) {
 
   #hud {
-    gap: 3px;
-    width: 99vw;
+    top: 7px;
+    gap: 4px;
   }
 
   .hud-item {
-    min-width: 55px;
-    padding: 5px 4px;
+    min-width: 60px;
+    padding: 5px 5px;
   }
 
   .hud-item strong {
@@ -569,21 +804,59 @@ canvas {
     font-size: 7px;
   }
 
-  .control-button {
+  .hud-item small {
+    font-size: 6px;
+  }
+
+  #nitroHud {
+    top: 82px;
+    width: 220px;
+  }
+
+  #mobileControls {
+    bottom: 8px;
+    height: 135px;
+  }
+
+  .left-button {
+    left: 12px;
+    bottom: 20px;
+
     width: 65px;
     height: 65px;
   }
 
   .right-button {
-    left: 90px;
+    left: 85px;
+    bottom: 20px;
+
+    width: 65px;
+    height: 65px;
+  }
+
+  .gas-button {
+    right: 15px;
+    bottom: 20px;
+
+    width: 75px;
+    height: 75px;
   }
 
   .brake-button {
     right: 100px;
+    bottom: 18px;
+
+    width: 75px;
+    height: 48px;
   }
 
-  .gas-button {
-    width: 78px;
-    height: 78px;
+  .nitro-button {
+    right: 15px;
+    bottom: 105px;
+
+    width: 90px;
+    height: 43px;
   }
+
 }
+
